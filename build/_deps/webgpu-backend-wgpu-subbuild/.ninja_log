@@ -1,0 +1,21 @@
+# ninja log v7
+3	102	7946442470831958	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-mkdir	291d2753f79118d2
+3	102	7946442470831958	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-mkdir	291d2753f79118d2
+102	7105	7946442540882477	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-download	a0c110f5f028e04e
+102	7105	7946442540882477	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-download	a0c110f5f028e04e
+7105	7200	7946442541845986	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-update	c724ef13f8a58b08
+7105	7200	7946442541845986	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-update	c724ef13f8a58b08
+7200	7276	7946442542576723	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-patch	108faaa54d391395
+7200	7276	7946442542576723	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-patch	108faaa54d391395
+7276	7352	7946442543387127	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-configure	3a95ece4016bc5fa
+7276	7352	7946442543387127	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-configure	3a95ece4016bc5fa
+7352	7447	7946442544298082	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-build	d7054e6d64503e7f
+7352	7447	7946442544298082	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-build	d7054e6d64503e7f
+7447	7537	7946442545215416	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-install	f1e44a11131c49c6
+7447	7537	7946442545215416	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-install	f1e44a11131c49c6
+7538	7643	7946442546269969	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-test	e8ac3077b505356a
+7538	7643	7946442546269969	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-test	e8ac3077b505356a
+7644	7768	7946442547484815	CMakeFiles/webgpu-backend-wgpu-populate-complete	1d5374ff07eb8dc3
+7644	7768	7946442547484815	webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-done	1d5374ff07eb8dc3
+7644	7768	7946442547484815	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/CMakeFiles/webgpu-backend-wgpu-populate-complete	1d5374ff07eb8dc3
+7644	7768	7946442547484815	C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/webgpu-backend-wgpu-populate-prefix/src/webgpu-backend-wgpu-populate-stamp/webgpu-backend-wgpu-populate-done	1d5374ff07eb8dc3

@@ -1,0 +1,11 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/manor/Documents/Software_Projects/graphics_engine/build/cmake_install.cmake",
+		"C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/glfw-build/cmake_install.cmake",
+		"C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/glfw-build/src/cmake_install.cmake",
+		"C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-build/cmake_install.cmake",
+		"C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

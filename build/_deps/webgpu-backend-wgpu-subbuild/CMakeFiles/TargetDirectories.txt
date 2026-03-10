@@ -1,0 +1,3 @@
+C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/CMakeFiles/webgpu-backend-wgpu-populate.dir
+C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/CMakeFiles/edit_cache.dir
+C:/Users/manor/Documents/Software_Projects/graphics_engine/build/_deps/webgpu-backend-wgpu-subbuild/CMakeFiles/rebuild_cache.dir
