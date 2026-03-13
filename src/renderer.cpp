@@ -73,9 +73,10 @@ void initRenderer(Renderer& renderer, GLFWwindow* window, MeshData& mesh) {
   wgpuQueueWriteBuffer(queue, indexBuffer, 0, mesh.indices.data(), iBufDesc.size);
   
   // New Instance Buffer
+  renderer.instanceCapacity = 10000;
   WGPUBufferDescriptor instBufDesc = {};
   instBufDesc.usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
-  instBufDesc.size = sizeof(Instance) * 10000;
+  instBufDesc.size = sizeof(Instance) * 20000;
   WGPUBuffer instanceBuffer = wgpuDeviceCreateBuffer(device, &instBufDesc);
 
   // Render Pipeline Setup and Shader Handling
@@ -116,7 +117,7 @@ void initRenderer(Renderer& renderer, GLFWwindow* window, MeshData& mesh) {
   
   WGPUVertexBufferLayout instanceLayout = {};
   instanceLayout.arrayStride = sizeof(Instance);
-  instanceLayout.stepMode = WGPUVertexStepMode_Instance; // The magic flag!
+  instanceLayout.stepMode = WGPUVertexStepMode_Instance;
   instanceLayout.attributeCount = 3;
   instanceLayout.attributes = instanceAttrs;
 

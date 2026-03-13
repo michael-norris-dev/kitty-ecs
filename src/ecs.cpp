@@ -27,4 +27,5 @@ void physics_system(Registry& registry) {
     
     if (registry.transforms[i].y + registry.velocities[i].dy < 1.0 && registry.transforms[i].y + registry.velocities[i].dy > -1.0)
       registry.transforms[i].y += registry.velocities[i].dy;
+  }
 }

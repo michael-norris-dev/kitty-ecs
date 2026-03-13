@@ -14,6 +14,13 @@
 #include "input.hpp"
 #include "ecs.hpp"
 
+private bool pause_tick = false;
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+  if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)  
+    pause_tick = !pause_tick;
+}
+
 void run_engine(int width, int height, const char* title, Application* app) {
   GLFWwindow* window = initWindow(width, height);
   Renderer renderer = {}; 
@@ -21,12 +28,24 @@ void run_engine(int width, int height, const char* title, Application* app) {
   initRenderer(renderer, window, base_shape);  
   Registry registry;
   Input input(window);
+  glfwSetKeyCallback(window, key_callback);
   
   app->on_start(registry, renderer);
+  const double TIME_PER_TICK = 1.0 / 2.0;
+  double previous_time = glfwGetTime();
+  double lag = 0.0;
 
   while (!glfwWindowShouldClose(window)) {
+    double current_time = glfwGetTime();
+    double elapsed_time = current_time - previous_time;
+    previous_time = current_time;
+    lag += elapsed_time;
     glfwPollEvents();
-    app->on_update(registry, input);
+    while (lag >= TIME_PER_TICK && pause_tick == false) {      
+      app->on_update(registry, input); // The ECS moves here!       
+      lag -= TIME_PER_TICK;     // Drain the bucket
+    }
+    //app->on_update(registry, input);
 
     WGPUSurfaceTexture surfaceTexture;
     wgpuSurfaceGetCurrentTexture(renderer.surface, &surfaceTexture);
@@ -71,6 +90,14 @@ void run_engine(int width, int height, const char* title, Application* app) {
       return a.z_index < b.z_index; 
     });
 
+    if (instance_data.size() > renderer.instanceCapacity) {
+      wgpuBufferRelease(renderer.instanceBuffer);
+      renderer.instanceCapacity = instance_data.size() * 1.5;
+      WGPUBufferDescriptor instBufDesc = {};
+      instBufDesc.usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
+      instBufDesc.size = sizeof(Instance) * renderer.instanceCapacity;
+      renderer.instanceBuffer = wgpuDeviceCreateBuffer(renderer.device, &instBufDesc);
+    }
     int data_size = instance_data.size() * sizeof(Instance);
     wgpuQueueWriteBuffer(renderer.queue, renderer.instanceBuffer, 0, instance_data.data(), data_size);
     wgpuRenderPassEncoderSetPipeline(renderPass, renderer.pipeline);

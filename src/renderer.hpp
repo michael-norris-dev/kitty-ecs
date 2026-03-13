@@ -15,6 +15,7 @@ struct Renderer {
   WGPUSurface surface;
   WGPUInstance instance;
   WGPUTextureFormat surfaceFormat;
+  size_t instanceCapacity;
   int indexCount;
 };
 
