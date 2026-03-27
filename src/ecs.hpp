@@ -15,6 +15,11 @@ struct Velocity {
   float dy;
 };
 
+struct Texture {
+  float atlas_x;
+  float atlas_y;
+};
+
 struct Color {
   float r, g, b;
 };
@@ -24,12 +29,14 @@ public:
   std::vector<bool> active_entities;
   std::vector<Transform> transforms;
   std::vector<Velocity> velocities;
+  std::vector<Texture> textures;
   std::vector<Color> colors;
 
   size_t create_entity() {
     active_entities.push_back(true);
     transforms.push_back({0.0f, 0.0f, 1.0f, 1.0f});
     velocities.push_back({0.0f, 0.0f});
+    textures.push_back({0.0f, 0.0f});
     colors.push_back({1.0f, 1.0f, 1.0f});
 
     return active_entities.size() - 1;

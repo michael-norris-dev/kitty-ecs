@@ -1,5 +1,5 @@
 #pragma once
+#include <webgpu/webgpu.h>
 
-// We are just telling the compiler: 
-// "Hey, a function with this exact name and return type exists somewhere."
-const char* get_shader_code();
+// Loads a WGSL shader from a text file and compiles it into a WebGPU module
+WGPUShaderModule load_shader_module(WGPUDevice device, const char* filepath);

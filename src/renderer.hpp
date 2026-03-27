@@ -15,6 +15,7 @@ struct Renderer {
   WGPUSurface surface;
   WGPUInstance instance;
   WGPUTextureFormat surfaceFormat;
+  WGPUBindGroup bindGroup;
   size_t instanceCapacity;
   int indexCount;
 };
@@ -23,8 +24,10 @@ struct Instance {
   float x, y;
   float scale_x, scale_y;
   float r, g, b;
+  float atlas_x, atlas_y;
   int z_index;
 };
 
 void initRenderer(Renderer& renderer, GLFWwindow* window, MeshData& mesh);
+WGPUTexture load_texture(WGPUDevice device, WGPUQueue queue, const char* filepath);
 void destroyRenderer(Renderer& renderer);

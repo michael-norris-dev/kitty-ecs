@@ -6,10 +6,10 @@ MeshData generate_quad(float size) {
   float half = size / 2.0f;
 
   // Push the 4 corners
-  mesh.vertices.push_back({{-half,  half}}); // Top Left
-  mesh.vertices.push_back({{-half, -half}}); // Bottom Left
-  mesh.vertices.push_back({{ half, -half}}); // Bottom Right
-  mesh.vertices.push_back({{ half,  half}}); // Top Right
+  mesh.vertices.push_back({{-half,  half}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}); // Top Left
+  mesh.vertices.push_back({{-half, -half}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}); // Bottom Left
+  mesh.vertices.push_back({{ half, -half}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}); // Bottom Right
+  mesh.vertices.push_back({{ half,  half}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}); // Top Right
   
   // Push the 6 indices (2 triangles)
   mesh.indices = {0, 1, 2, 0, 2, 3};

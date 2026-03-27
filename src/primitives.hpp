@@ -4,8 +4,9 @@
 
 // 1. Define the exact layout of our Vertex
 struct Vertex {
-  float position[2]; // x, y
-  // You can add color[3] or uv[2] here later!
+  float position[2];
+  float color[3];
+  float uv[2];
 };
 
 struct MeshData {

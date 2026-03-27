@@ -27,13 +27,43 @@ set(WEBGPU_BACKEND "WGPU" CACHE STRING "Use wgpu-native" FORCE)
 FetchContent_Declare(
   webgpu
   GIT_REPOSITORY https://github.com/eliemichel/WebGPU-distribution.git
-  GIT_TAG main-v0.2.0 # <--- The updated, stable release tag
+  GIT_TAG main-v0.2.0
 )
 FetchContent_MakeAvailable(webgpu)
 
-# Define our executable
-add_executable(engine src/main.cpp src/engine.cpp src/ecs.cpp src/renderer.cpp src/primitives.cpp src/shader.cpp src/window.cpp)
+file(GLOB IMGUI_SOURCES "src/imgui/*.cpp")
+file(COPY "src/shaders/shader.wgsl" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
+add_custom_target(
+  PackAtlas ALL
+  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/assets/scripts/atlas_gen.py
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMENT "Stitching raw assets into atlas.png..."
+)
+
+# Define our executable
+add_executable(engine 
+  src/main.cpp 
+  src/engine.cpp 
+  src/ecs.cpp 
+  src/renderer.cpp 
+  src/primitives.cpp 
+  src/shader.cpp 
+  src/window.cpp
+  ${IMGUI_SOURCES}
+)
+
+add_dependencies(engine PackAtlas)
+
+add_custom_command(
+  TARGET engine POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets
+  ${CMAKE_CURRENT_BINARY_DIR}/assets
+)
+
+target_include_directories(engine PRIVATE src/imgui)
+target_compile_definitions(engine PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
 # Link both libraries to our executable
 target_link_libraries(engine PRIVATE glfw webgpu)
 
