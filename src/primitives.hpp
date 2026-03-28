@@ -2,18 +2,18 @@
 #include <vector>
 #include <cstdint>
 
-// 1. Define the exact layout of our Vertex
-struct Vertex {
-  float position[2];
-  float color[3];
-  float uv[2];
-};
+namespace kitty_ecs {
+  struct Vertex {
+    float position[2];
+    float color[3];
+    float uv[2];
+  };
 
-struct MeshData {
-  std::vector<Vertex> vertices;
-  std::vector<uint16_t> indices;
-};
+  struct MeshData {
+    std::vector<Vertex> vertices;
+    std::vector<uint16_t> indices;
+  };
 
-// 3. The "Menu" of available shapes
-MeshData generate_quad(float size);
-MeshData generate_circle(float radius, int segments);
+  MeshData generate_quad(float size);
+  MeshData generate_circle(float radius, int segments);
+}

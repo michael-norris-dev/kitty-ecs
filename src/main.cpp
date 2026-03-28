@@ -5,7 +5,11 @@
 #include "engine.hpp"
 #include "ecs.hpp"
 #include "ships.hpp"
+#include "enemy.hpp"
 #include "imgui.h"
+
+using namespace kitty_ecs;
+using namespace battleship_bebop;
 
 void set_background(Registry& registry, int density) {
   float tile_loc = -2.0 / density;
@@ -17,29 +21,36 @@ void set_background(Registry& registry, int density) {
       float x = shift_factor + (i * tile_loc);
       float y = shift_factor + (j * tile_loc);
 
-      registry.transforms[bg_id] = {x, y, tile_size, tile_size, -1};
+      registry.transforms[bg_id] = {x, y, tile_size, tile_size, 0.0, -1};
       registry.colors[bg_id] = {1.0f, 1.0f, 1.0f};
       registry.textures[bg_id] = {0.0f, 0.0f};
     }
   }
 }
 
-void generate_map(Registry& registry) {
-  int board_size = 100;
-  float tile_size = -2.0 / board_size;
+void generate_map(Registry& registry, EnemyRegistry& enemy_fleet, int board_size) {
+  float tile_loc = -2.0 / board_size;
+  float tile_size = 10.0 / board_size;
 
-  for (int i = 0; i < board_size; i++) {
+  for (int i = 0; i < (board_size * 2); i++) {
     for (int j = 0; j < board_size; j++) {
       size_t tile = registry.create_entity();
-      float x = 1.0f + (i * tile_size);
-      float y = 1.0f + (j * tile_size);
-
-      registry.transforms[tile] = {x, y, 1.0f, 1.0f, -1};
-      registry.colors[tile] = {1.0f, 1.0f, 1.0f};
-      registry.textures[tile] = {0.0f, 0.0f};
+      float shift_factor_x = 1.0 - ((tile_size * 0.5f) / 10.0);
+      float shift_factor_y = 1.0 - (tile_size / 10.0);
+      float x = shift_factor_x + (i * (tile_loc / 2.0));
+      float y = shift_factor_y + (j * tile_loc);
+      if (j < (int)(board_size / 2.0)) {
+        enemy_fleet.init_tile(tile, x, y);
+        registry.colors[tile] = {1.0f, 1.0f, 1.0f};
+        registry.transforms[tile] = {x, y, (tile_size * 0.5f), tile_size, 0.0, 2};
+        registry.textures[tile] = {0.5f, 0.25f};
+      } else {
+        registry.colors[tile] = {1.0f, 1.0f, 1.0f};
+        registry.transforms[tile] = {x, y, (tile_size * 0.5f), tile_size, 0.0, 0};
+        registry.textures[tile] = {0.25f, 0.25f};
+      }
     }
   }
-
 }
 
 void player_controller_system(Registry& registry, Input& input, size_t player_id) {
@@ -57,7 +68,8 @@ void player_controller_system(Registry& registry, Input& input, size_t player_id
 class TestGame : public Application {
   private:
     size_t player_entity;
-    FleetRegistry fleet;
+    FleetRegistry player_fleet;
+    EnemyRegistry enemy_fleet;
     std::map<std::string, int> ship_length = {
       {"Light", 2},
       {"Medium", 3},
@@ -71,14 +83,14 @@ class TestGame : public Application {
 
   public:
     void on_start(Registry& registry, Renderer& renderer) override {
-      //generate_map(registry);
       set_background(registry, 2);
+      generate_map(registry, enemy_fleet, 20);
       player_entity = registry.create_entity();
-      registry.transforms[player_entity] = {-0.25f, -0.25f, 0.5f, 0.5f, 1};
+      registry.transforms[player_entity] = {-0.25f, -0.25f, 0.5f, 1.0f, 0.0, 1};
       registry.colors[player_entity] = {1.0f, 1.0f, 1.0f};
       registry.textures[player_entity] = {0.75f, 0.0f};
 
-      fleet.init_ship(player_entity, ShipTier::Medium, ship_length["Medium"], ship_speed["Medium"]);
+      player_fleet.init_ship(player_entity, ShipTier::Medium, ship_length["Medium"], ship_speed["Medium"]);
     }
 
     void on_update(Registry& registry, Input& input) override {
@@ -90,22 +102,16 @@ class TestGame : public Application {
     void on_ui(Registry& registry) override {
       ImGuiWindowFlags window_flags = 
         ImGuiWindowFlags_NoTitleBar | 
-        //ImGuiWindowFlags_NoBorder | 
         ImGuiWindowFlags_NoResize | 
         ImGuiWindowFlags_NoMove | 
         ImGuiWindowFlags_NoCollapse;
 
-      // Get the current dimensions of the main GLFW window
       ImGuiViewport* viewport = ImGui::GetMainViewport();
+      float hud_height = 400.0f; 
 
-      // Define how tall you want the HUD to be
-      float hud_height = 300.0f; 
-
-      // Calculate the bottom-left corner of the screen
       ImVec2 hud_pos = ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - hud_height);
       ImVec2 hud_size = ImVec2(viewport->WorkSize.x, hud_height);
 
-      // Apply the responsive positioning
       ImGui::SetNextWindowPos(hud_pos);
       ImGui::SetNextWindowSize(hud_size);
 
@@ -113,15 +119,14 @@ class TestGame : public Application {
 
       // 2. Split the UI: Fleet Roster on the left, Global Actions on the right
       ImGui::Columns(2, "HudColumns");
-      ImGui::SetColumnWidth(0, 700); // Give the roster more space
+      ImGui::SetColumnWidth(0, 700);
 
-      ImGui::Text("--- FLEET ROSTER ---");
+      ImGui::GetIO().FontGlobalScale = 2.0f; 
+      ImGui::Text("<<< Ship Status >>>");
+      for (size_t i = 0; i < player_fleet.stats.size(); ++i) {
+        if (player_fleet.stats[i].length == 0) continue;
 
-      // 3. Loop through your fleet and display live statuses
-      for (size_t i = 0; i < fleet.stats.size(); ++i) {
-        if (fleet.stats[i].length == 0) continue; // Skip empty slots
-
-        auto& state = fleet.movement[i];
+        auto& state = player_fleet.movement[i];
 
         ImGui::Text("Ship ID: %zu", i);
         ImGui::SameLine(100);
@@ -146,9 +151,8 @@ class TestGame : public Application {
           ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "[ COOLDOWN ]");
           ImGui::SameLine(200);
 
-          // Show a progress bar for the cooldown!
-          float progress = (float)state.ticks_til_move / (float)fleet.stats[i].ticks_per_move;
-          ImGui::ProgressBar(progress, ImVec2(150, 0), "Charging...");
+          float progress = (float)state.ticks_til_move / (float)player_fleet.stats[i].ticks_per_move;
+          ImGui::ProgressBar(progress, ImVec2(200, 0), "Charging...");
         }
       }
 
@@ -170,6 +174,6 @@ class TestGame : public Application {
 
 int main() {
   TestGame game;
-  run_engine(1024, 768, "Test Game", &game);
+  run_engine(2048, 1024, "Test Game", &game);
   return 0;
 }

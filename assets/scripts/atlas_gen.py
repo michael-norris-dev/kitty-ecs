@@ -7,7 +7,9 @@ def build_atlas():
     "light_tier.png",   # Slot 1: Player
     "mid_tier.png",    # Slot 2: Enemy (Placeholder)
     "heavy_tier.png",    # Slot 3: UI/Particles (Placeholder)
-    "recon_drone.png"
+    "recon_drone.png",
+    "tile_border.png",
+    "enemy_tile.png"
   ]
 
   raw_dir = "assets/raw"

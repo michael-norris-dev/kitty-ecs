@@ -4,7 +4,9 @@
 #define GLFW_EXPOSE_NATIVE_WIND32
 #include <GLFW/glfw3native.h>
 
-GLFWwindow* initWindow(int w, int h);
-WGPUSurface getWindowsSurface(WGPUInstance instance, GLFWwindow* window);
-void getFramebufferSize(GLFWwindow* window, int* width, int* height);
-void destroyWindow(GLFWwindow* window);
+namespace kitty_ecs {
+  GLFWwindow* initWindow(int w, int h);
+  WGPUSurface getWindowsSurface(WGPUInstance instance, GLFWwindow* window);
+  void getFramebufferSize(GLFWwindow* window, int* width, int* height);
+  void destroyWindow(GLFWwindow* window);
+}
