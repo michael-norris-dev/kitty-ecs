@@ -20,5 +20,9 @@ namespace kitty_ecs {
       void get_mouse_position(double& x, double& y) {
         glfwGetCursorPos(window, &x, &y); 
       }
+
+      void get_window_size(int& width, int& height) {
+        glfwGetWindowSize(window, &width, &height);
+      }
   };
 }

@@ -3,14 +3,13 @@ from PIL import Image
 
 def build_atlas():
   asset_order = [
-    "space_tileset.png",
-    "light_tier.png",
-    "mid_tier.png",
-    "heavy_tier.png",
+    "space_tileset.png", # Slot 0: Background
+    "light_tier.png",   # Slot 1: Player
+    "mid_tier.png",    # Slot 2: Enemy (Placeholder)
+    "heavy_tier.png",    # Slot 3: UI/Particles (Placeholder)
     "recon_drone.png",
     "tile_border.png",
-    "enemy_tile.png",
-    "tile_border_highlight.png"
+    "enemy_tile.png"
   ]
 
   raw_dir = "assets/raw"
@@ -26,26 +25,14 @@ def build_atlas():
     filepath = os.path.join(raw_dir, filename)
     row = index // columns
     col = index % columns
-
-    cell_x = col * slot_size
-    cell_y = row * slot_size
+    x = col * slot_size
+    y = row * slot_size
 
     if os.path.exists(filepath):
       img = Image.open(filepath).convert('RGBA')
-
-      try:
-        resample_filter = Image.Resampling.LANCZOS
-      except AttributeError:
-        resample_filter = Image.LANCZOS
-
-      img.thumbnail((slot_size, slot_size), resample_filter) 
-
-      offset_x = cell_x + (slot_size - img.width) // 2
-      offset_y = cell_y + (slot_size - img.height) // 2
-
-      atlas.paste(img, (offset_x, offset_y), img)
-
-      print(f"[{index}] Packed {filename} centered at ({offset_x}, {offset_y})")
+      img = img.resize((slot_size, slot_size)) 
+      atlas.paste(img, (x, y))
+      print(f"[{index}] Packed {filename} at ({x}, {y})")
     else:
       print(f"[{index}] WARNING: {filename} not found. Leaving slot blank.")
 

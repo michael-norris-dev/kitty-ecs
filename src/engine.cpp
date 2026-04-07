@@ -80,7 +80,7 @@ namespace kitty_ecs {
     glfwSetKeyCallback(window, key_callback);
 
     app->on_start(registry, renderer);
-    const double TIME_PER_TICK = 1.0 / 30.0;
+    const double TIME_PER_TICK = 1.0 / 2.0;
     double previous_time = glfwGetTime();
     double lag = 0.0;
     float aspect_ratio = 1.0;
@@ -125,9 +125,10 @@ namespace kitty_ecs {
 
       app->on_ui(registry);
       ImGui::Render();
+      app->on_update(registry, input);
 
       while (lag >= TIME_PER_TICK && pause_tick == false) {      
-        app->on_update(registry, input);
+        app->on_tick_update(registry, input);
         lag -= TIME_PER_TICK;
       }
 
@@ -170,7 +171,7 @@ namespace kitty_ecs {
               registry.transforms[i].scale_x, registry.transforms[i].scale_y,
               registry.colors[i].r, registry.colors[i].g, registry.colors[i].b,
               registry.textures[i].atlas_x, registry.textures[i].atlas_y,
-              (float)registry.transforms[i].rotation,
+              registry.transforms[i].rotation,
               registry.transforms[i].z_index
               });
         }

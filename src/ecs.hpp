@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include "constants.h"
 
 namespace kitty_ecs {
   struct Transform {
@@ -8,7 +9,7 @@ namespace kitty_ecs {
     float y;
     float scale_x;
     float scale_y;
-    double rotation;
+    float rotation;
     int z_index;
   };
 
@@ -36,7 +37,7 @@ namespace kitty_ecs {
 
       size_t create_entity() {
         active_entities.push_back(true);
-        transforms.push_back({0.0f, 0.0f, 1.0f, 1.0f, 0.0});
+        transforms.push_back({0.0f, 0.0f, 1.0f, 1.0f, 0.0f});
         velocities.push_back({0.0f, 0.0f});
         textures.push_back({0.0f, 0.0f});
         colors.push_back({1.0f, 1.0f, 1.0f});
@@ -48,9 +49,16 @@ namespace kitty_ecs {
         if (entity_id < active_entities.size())
           active_entities[entity_id] = false;
       }
+
+      void rotation2D(size_t entity_id, float radians) {
+        transforms[entity_id].rotation += radians;
+        if (transforms[entity_id].rotation > (2.0f * kitty_ecs::PI))
+          transforms[entity_id].rotation -= (2.0f * kitty_ecs::PI);
+        else if (transforms[entity_id].rotation < 0.0f)
+          transforms[entity_id].rotation += (2.0f * kitty_ecs::PI);
+      }
   };
 
   bool is_overlapping(const Transform& a, const Transform& b);
-  void rotation2D(Registry& registry, size_t entity_id, double radians);
   void physics_system(Registry& registry);
 }

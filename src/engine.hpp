@@ -10,6 +10,7 @@ namespace kitty_ecs {
       virtual ~Application() = default;
 
       virtual void on_start(Registry& registry, Renderer& renderer) = 0;
+      virtual void on_tick_update(Registry& registry, Input& input) = 0;
       virtual void on_update(Registry& registry, Input& input) = 0;
       virtual void on_ui(Registry& registry) = 0;
   };

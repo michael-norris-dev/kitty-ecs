@@ -18,13 +18,13 @@ namespace kitty_ecs {
         a_bottom < b_top && 
         a_top > b_bottom);
   }
-
+  /*
   void rotation2D(Registry& registry, size_t entity_id, double radians) {
     registry.transforms[entity_id].rotation += radians;
     if (registry.transforms[entity_id].rotation > (2.0 * PI))
       registry.transforms[entity_id].rotation -= (2.0 * PI);
   }
-
+  */
   void physics_system(Registry& registry) {
     for (size_t i = 0; i < registry.active_entities.size(); i++) {
       if (!registry.active_entities[i])

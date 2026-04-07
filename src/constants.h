@@ -1,5 +1,5 @@
 #pragma once
 
 namespace kitty_ecs {
-  inline constexpr double PI = 3.1415926535897;
+  inline constexpr float PI = 3.141592f;
 }

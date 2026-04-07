@@ -27,7 +27,7 @@ namespace kitty_ecs {
     float scale_x, scale_y;
     float r, g, b;
     float atlas_x, atlas_y;
-    double rotation;
+    float rotation;
     int z_index;
   };
 
