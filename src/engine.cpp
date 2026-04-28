@@ -1,11 +1,13 @@
 #include <iostream>
 #include <vector>
-#include <webgpu/webgpu.h>
+#include <webgpu/webgpu.h> //.h
 #include <algorithm>
-#include <GLFW/glfw3.h>
+#include <GLFW/glfw3.h> //.h
 
 #define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
+#include <GLFW/glfw3native.h> //.h
+#include "memory_metrics.hpp"
+#include "scoped_timer.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_wgpu.h"
@@ -16,6 +18,10 @@
 #include "engine.hpp"
 #include "input.hpp"
 #include "ecs.hpp"
+
+void PrintMemoryUsage() {
+  std::cout << "\r\033[KCurrent Engine Heap Usage: " << g_Metrics.CurrentUsage() << " bytes";
+}
 
 namespace kitty_ecs {
   bool pause_tick = false;
@@ -80,19 +86,20 @@ namespace kitty_ecs {
     glfwSetKeyCallback(window, key_callback);
 
     app->on_start(registry, renderer);
-    const double TIME_PER_TICK = 1.0 / 2.0;
-    double previous_time = glfwGetTime();
-    double lag = 0.0;
-    float aspect_ratio = 1.0;
+    const float TIME_PER_TICK = 1.0f / 2.0f;
+    float previous_time = glfwGetTime();
+    float lag = 0.0f;
+    float aspect_ratio = 1.0f;
     int current_width = 0;
     int current_height = 0;
     glfwGetFramebufferSize(window, &current_width, &current_height);
-
     while (!glfwWindowShouldClose(window)) {
-      double current_time = glfwGetTime();
-      double elapsed_time = current_time - previous_time;
+      float current_time = glfwGetTime();
+      float elapsed_time = current_time - previous_time;
       previous_time = current_time;
-      lag += elapsed_time;
+      if (!pause_tick) {
+        lag += elapsed_time;
+      }
       glfwPollEvents();
       int width, height;
       glfwGetFramebufferSize(window, &width, &height);
@@ -125,12 +132,15 @@ namespace kitty_ecs {
 
       app->on_ui(registry);
       ImGui::Render();
-      app->on_update(registry, input);
 
-      while (lag >= TIME_PER_TICK && pause_tick == false) {      
+      //while (lag >= TIME_PER_TICK && pause_tick == false) {      
+      while (lag >= TIME_PER_TICK) {      
         app->on_tick_update(registry, input);
         lag -= TIME_PER_TICK;
+        ScopedTimer timer("Main Engine Loop");
+        PrintMemoryUsage();
       }
+      app->on_update(registry, input);
 
       WGPUSurfaceTexture surfaceTexture;
       wgpuSurfaceGetCurrentTexture(renderer.surface, &surfaceTexture);
@@ -153,7 +163,7 @@ namespace kitty_ecs {
       colorAttachment.view = screenView;
       colorAttachment.loadOp = WGPULoadOp_Clear;
       colorAttachment.storeOp = WGPUStoreOp_Store;
-      colorAttachment.clearValue = WGPUColor{ 0.1, 0.2, 0.3, 1.0 };
+      colorAttachment.clearValue = WGPUColor{ 0.1f, 0.2f, 0.3f, 1.0f };
 
       WGPURenderPassDescriptor passDesc = {};
       passDesc.colorAttachmentCount = 1;
@@ -164,7 +174,7 @@ namespace kitty_ecs {
       wgpuRenderPassEncoderSetViewport(renderPass, 0.0f, 0.0f, (float)width, (float)height - hud_height, 0.0f, 1.0f);
 
       std::vector<Instance> instance_data;
-      for (size_t i = 0; i < registry.active_entities.size(); i++) {
+      for (size_t i = 0; i < registry.active_entities.size(); ++i) {
         if (registry.active_entities[i]) {
           instance_data.push_back({
               registry.transforms[i].x, registry.transforms[i].y,
@@ -182,7 +192,7 @@ namespace kitty_ecs {
 
       if (instance_data.size() > renderer.instanceCapacity) {
         wgpuBufferRelease(renderer.instanceBuffer);
-        renderer.instanceCapacity = instance_data.size() * 1.5;
+        renderer.instanceCapacity = instance_data.size() * 1.5f;
         WGPUBufferDescriptor instBufDesc = {};
         instBufDesc.usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
         instBufDesc.size = sizeof(Instance) * renderer.instanceCapacity;
@@ -216,5 +226,5 @@ namespace kitty_ecs {
     ImGui::DestroyContext();
     destroyRenderer(renderer);
     destroyWindow(window);
+    }
   }
-}

@@ -17,6 +17,7 @@ namespace battleship_bebop {
   struct PathNode {
     GridPos pos;
     int facing_dir;
+    int rot_direction;
     int f_cost;
     bool operator>(const PathNode& other) const {
       return f_cost > other.f_cost;
@@ -39,6 +40,11 @@ namespace battleship_bebop {
     int max_hp;
     int damage_direct;
     int damage_indirect;
+
+    float range;
+    int aoe_radius;
+    int volley_count;
+    float hit_chance;
   };
 
   struct ActionState {
@@ -61,43 +67,120 @@ namespace battleship_bebop {
     int facing_direction;
     std::deque<GridPos> path_queue;
     GridPos target_grid_pos;
+    bool is_rotating;
+    int rot_direction;
   };
 
   CombatStats get_base_stats(ShipTier tier) {
     switch(tier) {
-      case ShipTier::Heavy:  return {200, 200, 100, 50};
-      case ShipTier::Medium: return {100, 100, 50, 25};
-      case ShipTier::Light:  return {50, 50, 25, 0};
+      case ShipTier::Heavy:  return {200, 200, 100, 50, 18.0f, 2, 6, 0.35f};
+      case ShipTier::Medium: return {100, 100, 50, 25, 12.0f, 1, 3, 0.60f};
+      case ShipTier::Light:  return {50, 50, 25, 0, 8.0f, 0, 1, 0.90f};
     }
-    return {0, 0, 0, 0};
+    return {0, 0, 0, 0, 0.0f, 0, 0, 0.0f};
   }
 
-  inline std::vector<GridPos> get_ship_tiles(GridPos mid, int length, int direction) {
+  inline bool is_in_range(GridPos ship, GridPos target, float range) {
+    float dx = (float)(target.x - ship.x);
+    float dy = (float)(target.y - ship.y);
+    float distance = std::sqrt((dx * dx) + (dy * dy));
+    return distance <= range;
+  }
+
+  inline std::vector<GridPos> get_aoe_tiles(GridPos center, int aoe_radius, int board_x) {
+    std::vector<GridPos> aoe;
+    for (int x = center.x - aoe_radius; x <= center.x + aoe_radius; x++) {
+      for (int y = center.y - aoe_radius; y <= center.y + aoe_radius; y++) {
+        if (x >= 0 && x < board_x && y >= 0) {
+          aoe.push_back({x, y});
+        }
+      }
+    }
+    return aoe;
+  }
+
+  inline std::vector<GridPos> get_ship_tiles(GridPos mid, int length, int direction, int rot_dir) {
     std::vector<GridPos> occupied_tiles;
 
-    if (length == 2) {
-      if (direction == 1)      occupied_tiles.push_back({mid.x, mid.y - 1}); // Facing Up
-      else if (direction == 2) occupied_tiles.push_back({mid.x - 1, mid.y}); // Facing Right 
-      else if (direction == 3) occupied_tiles.push_back({mid.x, mid.y + 1}); // Facing Down
-      else if (direction == 4) occupied_tiles.push_back({mid.x + 1, mid.y}); // Facing Left
-      occupied_tiles.push_back(mid);
-
-      return occupied_tiles;
-    }
-
     int half = (length - 1) / 2;
-    for (int i = 1; i <= half; i++) {                                        // Top Half
-      if (direction == 1)      occupied_tiles.push_back({mid.x, mid.y - i}); // Facing Up
-      else if (direction == 2) occupied_tiles.push_back({mid.x - i, mid.y}); // Facing Right 
-      else if (direction == 3) occupied_tiles.push_back({mid.x, mid.y + i}); // Facing Down
-      else if (direction == 4) occupied_tiles.push_back({mid.x + i, mid.y}); // Facing Left
-    }
-    occupied_tiles.push_back(mid);
-    for (int i = 1; i <= half; i++) {                                        // Bottom Half
-      if (direction == 1)      occupied_tiles.push_back({mid.x, mid.y + i}); // Facing Up
-      else if (direction == 2) occupied_tiles.push_back({mid.x + i, mid.y}); // Facing Right 
-      else if (direction == 3) occupied_tiles.push_back({mid.x, mid.y - i}); // Facing Down
-      else if (direction == 4) occupied_tiles.push_back({mid.x - i, mid.y}); // Facing Left
+    if (direction != rot_dir) {
+      int diff = direction - rot_dir;
+      if (std::abs(diff) > 1) diff /= -3;
+  
+      // Front Half
+      for (int i = 1; i <= half; i++) {
+        switch (direction) {                                        
+          case 1: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x - i, mid.y - i});
+            else 
+              occupied_tiles.push_back({mid.x + i, mid.y - i});
+            break;
+          case 2: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x - i, mid.y + i}); 
+            else 
+              occupied_tiles.push_back({mid.x - i, mid.y - i}); 
+            break;
+          case 3: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x + i, mid.y + i});
+            else
+              occupied_tiles.push_back({mid.x - i, mid.y + i});
+            break;
+          case 4: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x + i, mid.y - i});
+            else 
+              occupied_tiles.push_back({mid.x + i, mid.y + i});
+            break;
+        }
+      }
+      // Center Index Tile
+      occupied_tiles.push_back(mid);
+      // Back Half
+      for (int i = 1; i <= half; i++) {  
+        switch(direction) {
+          case 1:
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x + i, mid.y + i});
+            else 
+              occupied_tiles.push_back({mid.x - i, mid.y + i});
+            break;
+          case 2: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x + i, mid.y - i}); 
+            else 
+              occupied_tiles.push_back({mid.x + i, mid.y + i}); 
+            break;
+          case 3: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x - i, mid.y - i});
+            else
+              occupied_tiles.push_back({mid.x + i, mid.y - i});
+            break;
+          case 4: 
+            if (diff > 0) 
+              occupied_tiles.push_back({mid.x - i, mid.y + i});
+            else 
+              occupied_tiles.push_back({mid.x - i, mid.y - i});
+            break;
+        }
+      }
+    } else {
+      for (int i = 1; i <= half; i++) {                                        // Top Half
+        if (direction == 1)      occupied_tiles.push_back({mid.x, mid.y - i}); // Facing Up
+        else if (direction == 2) occupied_tiles.push_back({mid.x - i, mid.y}); // Facing Right 
+        else if (direction == 3) occupied_tiles.push_back({mid.x, mid.y + i}); // Facing Down
+        else if (direction == 4) occupied_tiles.push_back({mid.x + i, mid.y}); // Facing Left
+      }
+      occupied_tiles.push_back(mid);
+      for (int i = 1; i <= half; i++) {                                        // Bottom Half
+        if (direction == 1)      occupied_tiles.push_back({mid.x, mid.y + i}); // Facing Up
+        else if (direction == 2) occupied_tiles.push_back({mid.x + i, mid.y}); // Facing Right 
+        else if (direction == 3) occupied_tiles.push_back({mid.x, mid.y - i}); // Facing Down
+        else if (direction == 4) occupied_tiles.push_back({mid.x - i, mid.y}); // Facing Left
+      }
     }
 
     return occupied_tiles;
@@ -162,9 +245,121 @@ namespace battleship_bebop {
         actions.resize(entity_id + 100);
       }
       stats[entity_id] = {tier, length, speed};
-      movement[entity_id] = {0, true, true, {0, 0}, 1};
+      movement[entity_id] = {0, true, false, {0, 0}, 1};
+      movement[entity_id].is_rotating = false;
+      movement[entity_id].rot_direction = 1;
       combat[entity_id] = get_base_stats(tier);
       actions[entity_id] = {false, 0.0f, 0.0f};
+    }
+
+    void update_ship_scaling(kitty_ecs::Registry& registry, float tile_size) {
+      float magnification = 3.0f;
+      float base_scale_x = (tile_size) * magnification;
+      float base_scale_y = tile_size * magnification;
+      float scale_x = 1.0f;
+      float scale_y = 1.0f;
+      for (int i = 0; i < stats.size(); i++) {
+        if  (stats[i].length == 0) continue;
+        if (movement[i].set_move == false) continue;
+
+        switch (movement[i].facing_direction) {
+          case 1:
+            scale_x = 1.0f;
+            if (stats[i].tier == ShipTier::Heavy && movement[i].is_rotating) {
+              scale_y = 3.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (stats[i].tier == ShipTier::Heavy) {
+              scale_y = 5.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (movement[i].is_rotating) {
+              scale_y = 2.0f;
+              scale_x = 1.2f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else {
+              scale_y = 3.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            }
+            break;
+          case 2:
+            scale_x = 1.0f;
+            if (stats[i].tier == ShipTier::Heavy && movement[i].is_rotating) {
+              scale_y = 5.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (stats[i].tier == ShipTier::Heavy) {
+              scale_y = 3.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (movement[i].is_rotating) {
+              scale_y = 3.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else {
+              scale_y = 2.0f;
+              scale_x = 1.2f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            }
+            break;
+          case 3:
+            scale_x = 1.0f;
+            if (stats[i].tier == ShipTier::Heavy && movement[i].is_rotating) {
+              scale_y = 3.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (stats[i].tier == ShipTier::Heavy) {
+              scale_y = 5.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (movement[i].is_rotating) {
+              scale_y = 2.0f;
+              scale_x = 1.2f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else {
+              scale_y = 3.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            }
+            break;
+          case 4:
+            scale_x = 1.0f;
+            if (stats[i].tier == ShipTier::Heavy && movement[i].is_rotating) {
+              scale_y = 5.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (stats[i].tier == ShipTier::Heavy) {
+              scale_y = 3.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else if (movement[i].is_rotating) {
+              scale_y = 3.0f;
+              scale_x = 1.0f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            } else {
+              scale_y = 2.0f;
+              scale_x = 1.2f;
+              registry.transforms[i].scale_x = base_scale_x * scale_x;
+              registry.transforms[i].scale_y = base_scale_y * scale_y;
+            }
+            break;
+          default:
+            continue;
+            break;
+        }
+      }
     }
 
     void spawn_ship(kitty_ecs::Registry& registry, ShipTier tier, 
@@ -187,7 +382,7 @@ namespace battleship_bebop {
 
         valid_spawn = true;
 
-        auto spawn_tiles = get_ship_tiles({spawn_x, spawn_y}, ship_length, spawn_dir);
+        auto spawn_tiles = get_ship_tiles({spawn_x, spawn_y}, ship_length, spawn_dir, spawn_dir);
 
         for (const auto& tile : spawn_tiles) {
           if (tile.x < 1 || tile.x >= board_x - 1 || 
@@ -207,6 +402,7 @@ namespace battleship_bebop {
       init_ship(ship_id, tier, ship_length, ship_speed);
       movement[ship_id].current_grid_pos = {spawn_x, spawn_y};
       movement[ship_id].facing_direction = spawn_dir;
+      movement[ship_id].rot_direction = spawn_dir;
 
       float tile_loc = -2.0f / board_y;
       float shift_factor_x = 1.0f - ((tile_size * 0.5f) / 10.0f);
@@ -214,11 +410,6 @@ namespace battleship_bebop {
 
       float world_x = shift_factor_x + (spawn_x * (tile_loc * 0.5f));
       float world_y = shift_factor_y + (spawn_y * tile_loc);
-
-      if (ship_length % 2 == 0) {
-        if (spawn_dir == 1) world_y -= (tile_loc * 0.5f);
-        if (spawn_dir == 3) world_y += (tile_loc * 0.5f);
-      }
 
       float magnification = 3.0f;
       float base_scale_x = (tile_size) * magnification;
@@ -236,21 +427,20 @@ namespace battleship_bebop {
       }
       switch (tier) {
         case ShipTier::Light:
-          //scale_y = 2.0f;
           scale_y = 3.0f;
-          scale_x = 0.8f;
+          scale_x = 1.0f;
           registry.transforms[ship_id] = {world_x, world_y, base_scale_x * scale_x, base_scale_y * scale_y, radians, 1};
           registry.textures[ship_id] = {0.25f, 0.0f};
           break;
         case ShipTier::Medium:
           scale_y = 3.0f;
-          scale_x = 0.8f;
+          scale_x = 1.0f;
           registry.transforms[ship_id] = {world_x, world_y, base_scale_x * scale_x, base_scale_y * scale_y, radians, 1};
           registry.textures[ship_id] = {0.5f, 0.0f};
           break;
         case ShipTier::Heavy:
           scale_y = 5.0f;
-          scale_x = 0.8f;
+          scale_x = 1.0f;
           registry.transforms[ship_id] = {world_x, world_y, base_scale_x * scale_x, base_scale_y * scale_y, radians, 1};
           registry.textures[ship_id] = {0.75f, 0.0f};
           break;
@@ -270,12 +460,13 @@ namespace battleship_bebop {
     }
 
     inline bool is_tile_occupied(int ship_id, int target_x, int target_y) {
-      for (size_t i = 0; i < stats.size(); ++i) {
+      for (size_t i = 0; i < stats.size(); i++) {
         if (stats[i].length == 0 || i == ship_id) continue; 
 
         auto tiles = get_ship_tiles(movement[i].current_grid_pos, 
             stats[i].length, 
-            movement[i].facing_direction);
+            movement[i].facing_direction, 
+            movement[i].rot_direction);
         for (const auto& tile : tiles) {
           if (tile.x == target_x && tile.y == target_y) return true;
         }
@@ -300,7 +491,7 @@ namespace battleship_bebop {
 
       g_costs[start.x][start.y][start_dir] = 0;
       int start_h = std::abs(target.x - start.x) + std::abs(target.y - start.y);
-      open_list.push({start, start_dir, start_h});
+      open_list.push({start, start_dir, start_dir, start_h});
 
       bool found_path = false;
       int end_dir = start_dir;
@@ -315,7 +506,7 @@ namespace battleship_bebop {
           break; 
         }
 
-        for (int new_dir = 1; new_dir <= 4; ++new_dir) {
+        for (int new_dir = 1; new_dir <= 4; new_dir++) {
           GridPos next_pos = current.pos;
 
           if (new_dir == 1) next_pos.y += 1;
@@ -323,11 +514,11 @@ namespace battleship_bebop {
           else if (new_dir == 3) next_pos.y -= 1;
           else if (new_dir == 4) next_pos.x -= 1;
 
-          auto proposed_tiles = get_ship_tiles(next_pos, ship_length, new_dir);
+          auto proposed_tiles = get_ship_tiles(next_pos, ship_length, new_dir, new_dir);
           bool is_valid = true;
 
           for (const auto& tile : proposed_tiles) {
-            if (tile.x < 0 || tile.x >= max_x || tile.y < 0 || tile.y >= max_y) {
+            if (tile.x < 0 || tile.x >= max_x || tile.y < (max_y / 2) || tile.y >= max_y) {
               is_valid = false;
               break;
             }
@@ -351,7 +542,7 @@ namespace battleship_bebop {
             int f_cost = tentative_g + h_cost;
             parents[next_pos.x][next_pos.y][new_dir] = {current.pos, current.facing_dir};
 
-            open_list.push({next_pos, new_dir, f_cost});
+            open_list.push({next_pos, new_dir, new_dir, f_cost});
           }
         }
       }
@@ -382,10 +573,13 @@ namespace battleship_bebop {
               registry.transforms[ship_id].x -= ((tile_size * 0.5f) / 5.0f);
               movement[ship_id].current_grid_pos.x += 1;
               movement[ship_id].facing_direction = 4;
+              movement[ship_id].rot_direction = 4;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 4) == 1) {
               registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 4;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 4) == 0) {
               registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 4;
             }
             break;
           case 3:
@@ -396,10 +590,13 @@ namespace battleship_bebop {
               registry.transforms[ship_id].y -= ((tile_size) / 5.0f);
               movement[ship_id].current_grid_pos.y += 1;
               movement[ship_id].facing_direction = 3;
+              movement[ship_id].rot_direction = 3;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 3) == 1) {
               registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 3;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 3) == 0) {
               registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 3;
             }
             break;
           case 2:
@@ -409,10 +606,13 @@ namespace battleship_bebop {
               registry.transforms[ship_id].x += ((tile_size * 0.5f) / 5.0f);
               movement[ship_id].current_grid_pos.x -= 1;
               movement[ship_id].facing_direction = 2;
+              movement[ship_id].rot_direction = 2;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 2) == 1) {
               registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 2;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 2) == 0) {
               registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 2;
             }
             break;
           case 1:
@@ -423,10 +623,13 @@ namespace battleship_bebop {
               registry.transforms[ship_id].y += ((tile_size) / 5.0f);
               movement[ship_id].current_grid_pos.y -= 1;
               movement[ship_id].facing_direction = 1;
+              movement[ship_id].rot_direction = 1;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 1) == 1) {
               registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 1;
             } else if (quadrant_check(registry.transforms[ship_id].rotation, 1) == 0) {
               registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 1;
             }
             break;
         }
@@ -438,14 +641,7 @@ namespace battleship_bebop {
         if (stats[i].length == 0 || !registry.active_entities[i]) continue;
 
         auto& move_state = movement[i];
-
-        if (!move_state.can_move) {
-          move_state.ticks_til_move--;
-          if (move_state.ticks_til_move == 0) {
-            move_state.can_move = true;
-          }
-        }
-
+        
         if (move_state.can_move && move_state.set_move && !move_state.path_queue.empty()) {
           GridPos next_step = move_state.path_queue.front();
           if (is_tile_occupied(i, next_step.x, next_step.y)) {
@@ -468,43 +664,50 @@ namespace battleship_bebop {
               move_state.set_move = false;
             }
 
-            move_state.can_move = false;
-            move_state.ticks_til_move = stats[i].ticks_per_move;
             continue; 
           }
           int dx = next_step.x - move_state.current_grid_pos.x;
           int dy = next_step.y - move_state.current_grid_pos.y;
+          int curr_x = move_state.current_grid_pos.x;
+          int curr_y = move_state.current_grid_pos.y;
+          int face_dir = move_state.facing_direction;
 
           if (dy > 0 && dx == 0) {
+            if (face_dir != 3 && face_dir != 1) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
             fleet_movement_system(registry, i, tile_size, 3);
-            std::cout << "Ship " << i << "moving Up! to" << move_state.current_grid_pos.y << "\n";
           } else if (dy < 0 && dx == 0) {
+            if (face_dir != 3 && face_dir != 1) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
             fleet_movement_system(registry, i, tile_size, 1);
-            std::cout << "Ship " << i << "moving Down! to" << move_state.current_grid_pos.y << "\n";
           } else if (dx > 0 && dy == 0) {
+            if (face_dir != 4 && face_dir != 2) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
             fleet_movement_system(registry, i, tile_size, 4);
-            std::cout << "Ship " << i << "moving Right! to" << move_state.current_grid_pos.x << "\n";
           } else if (dx < 0 && dy == 0) {
+            if (face_dir != 4 && face_dir != 2) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
             fleet_movement_system(registry, i, tile_size, 2);
-            std::cout << "Ship " << i << "moving Left! to" << move_state.current_grid_pos.x << "\n";
           } else {
-            if (dy > 0) {
-              fleet_movement_system(registry, i, tile_size, 3);
-              std::cout << "Ship " << i << "moving Up after Else! to" << move_state.current_grid_pos.y << "\n";
-            } else {
-              fleet_movement_system(registry, i, tile_size, 1);
-              std::cout << "Ship " << i << "moving Up after Else! to" << move_state.current_grid_pos.y << "\n";
-            }
+            move_state.is_rotating = false;
           }
 
           if (move_state.current_grid_pos.x == next_step.x && move_state.current_grid_pos.y == next_step.y) {
             move_state.path_queue.pop_front();
+            move_state.is_rotating = false;
             if (move_state.path_queue.empty()) {
               move_state.set_move = false;
-              move_state.can_move = false;
+              move_state.can_move = true;
               move_state.ticks_til_move = stats[i].ticks_per_move;
             }
           }
+        }
+        if (move_state.ticks_til_move == 0) {
+          move_state.can_move = true;
+          move_state.ticks_til_move = stats[i].ticks_per_move;
+        } else if (move_state.ticks_til_move <= stats[i].ticks_per_move && move_state.set_move) {
+          move_state.can_move = false;
+          move_state.ticks_til_move--;
         }
       }
     }

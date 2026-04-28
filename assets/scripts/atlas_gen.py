@@ -10,7 +10,8 @@ def build_atlas():
     "recon_drone.png",
     "tile_border.png",
     "enemy_tile.png",
-    "tile_border_highlight.png"
+    "tile_border_highlight.png",
+    "enemy_tile_highlight.png"
   ]
 
   raw_dir = "assets/raw"

@@ -50,6 +50,7 @@ add_executable(engine
   src/primitives.cpp 
   src/shader.cpp 
   src/window.cpp
+  src/memory_metrics.cpp
   ${IMGUI_SOURCES}
 )
 
