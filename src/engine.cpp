@@ -34,7 +34,8 @@ namespace kitty_ecs {
   void run_engine(int width, int height, const char* title, Application* app) {
     GLFWwindow* window = initWindow(width, height);
     Renderer renderer = {}; 
-    MeshData base_shape = generate_quad(0.2f);
+    //MeshData base_shape = generate_quad(0.2f);
+    MeshData base_shape = generate_hexagon(1.0f);
     initRenderer(renderer, window, base_shape);  
     WGPUTexture main_texture = load_texture(renderer.device, renderer.queue, "assets/atlas.png");
     WGPUTextureViewDescriptor viewDesc = {};
@@ -67,7 +68,7 @@ namespace kitty_ecs {
     bgEntries[2].binding = 2;
     bgEntries[2].buffer = renderer.globalsBuffer;
     bgEntries[2].offset = 0;
-    bgEntries[2].size = 16;
+    bgEntries[2].size = 64;
 
     WGPUBindGroupDescriptor bgDesc = {};
     bgDesc.layout = wgpuRenderPipelineGetBindGroupLayout(renderer.pipeline, 0);
@@ -86,9 +87,11 @@ namespace kitty_ecs {
     glfwSetKeyCallback(window, key_callback);
 
     app->on_start(registry, renderer);
-    const float TIME_PER_TICK = 1.0f / 2.0f;
+    const float TIME_PER_TICK = 1.0f / 10.0f;
     float previous_time = glfwGetTime();
     float lag = 0.0f;
+    float fps_timer = 0.0f;
+    int frame_count = 0;
     float aspect_ratio = 1.0f;
     int current_width = 0;
     int current_height = 0;
@@ -100,6 +103,8 @@ namespace kitty_ecs {
       if (!pause_tick) {
         lag += elapsed_time;
       }
+      fps_timer += elapsed_time;
+      frame_count++;
       glfwPollEvents();
       int width, height;
       glfwGetFramebufferSize(window, &width, &height);
@@ -118,13 +123,6 @@ namespace kitty_ecs {
         config.alphaMode = WGPUCompositeAlphaMode_Auto;
 
         wgpuSurfaceConfigure(renderer.surface, &config);
-
-        float viewport_height = (float)height - 400.0f;
-        if (viewport_height < 1.0f) viewport_height = 1.0f; // Prevent divide-by-zero crash
-
-        aspect_ratio = (float)width / viewport_height;
-        float uniform_data[4] = { aspect_ratio, 0.0f, 0.0f, 0.0f };
-        wgpuQueueWriteBuffer(renderer.queue, renderer.globalsBuffer, 0, uniform_data, 16);
       }
       ImGui_ImplWGPU_NewFrame();
       ImGui_ImplGlfw_NewFrame();
@@ -137,10 +135,39 @@ namespace kitty_ecs {
       while (lag >= TIME_PER_TICK) {      
         app->on_tick_update(registry, input);
         lag -= TIME_PER_TICK;
-        ScopedTimer timer("Main Engine Loop");
-        PrintMemoryUsage();
       }
       app->on_update(registry, input);
+      int w, h;
+      glfwGetWindowSize(window, &w, &h);
+      float viewport_height = (float)h - 400.0f; // Assuming you have a 400px bottom UI panel
+      if (viewport_height < 1.0f) viewport_height = 1.0f;
+      float aspect_ratio = (float)w / viewport_height;
+
+      // 2. Fetch the Camera State from the Game
+      float cx = app->get_camera_x();
+      float cy = app->get_camera_y();
+      float zoom = app->get_camera_zoom(); 
+
+      // 3. Create the bounding box around the camera's center point
+      float half_w = (zoom * aspect_ratio) / 2.0f;
+      float half_h = zoom / 2.0f;
+
+      float left = cx - half_w;
+      float right = cx + half_w;
+      float bottom = cy - half_h;
+      float top = cy + half_h;
+
+      // 4. Construct Column-Major WebGPU Matrix
+      float ortho_matrix[16] = {0};
+      ortho_matrix[0]  = 2.0f / (right - left);
+      ortho_matrix[5]  = 2.0f / (top - bottom);
+      ortho_matrix[10] = 1.0f; 
+      ortho_matrix[12] = -(right + left) / (right - left); // Translate X
+      ortho_matrix[13] = -(top + bottom) / (top - bottom); // Translate Y
+      ortho_matrix[15] = 1.0f;
+
+      // Send the camera movement to the GPU!
+      wgpuQueueWriteBuffer(renderer.queue, renderer.globalsBuffer, 0, ortho_matrix, 64);
 
       WGPUSurfaceTexture surfaceTexture;
       wgpuSurfaceGetCurrentTexture(renderer.surface, &surfaceTexture);
@@ -219,6 +246,21 @@ namespace kitty_ecs {
       wgpuRenderPassEncoderRelease(renderPass);
       wgpuCommandEncoderRelease(encoder);
       wgpuTextureViewRelease(screenView);
+
+      if (fps_timer >= 1.0f) {
+        // \r and \033[K clear the console line so it updates cleanly in place
+        std::cout << "\r\033[K[ FPS: " << frame_count 
+                  << " ] | [ Heap: " << g_Metrics.CurrentUsage() << " bytes ]" 
+                  << std::flush;
+        
+        // Optional: Also throw it into the window title!
+        std::string title = "Battleship Bebop - FPS: " + std::to_string(frame_count);
+        glfwSetWindowTitle(window, title.c_str());
+
+        // Reset the counters for the next second
+        frame_count = 0;
+        fps_timer = 0.0f;
+      }
     }
 
     ImGui_ImplWGPU_Shutdown();

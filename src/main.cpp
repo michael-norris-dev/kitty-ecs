@@ -7,73 +7,105 @@
 #include "ships.hpp"
 #include "enemy.hpp"
 #include "imgui.h"
+#include "world_gen.hpp"
 
 using namespace kitty_ecs;
-using namespace battleship_bebop;
+using namespace xenoterra_imperium;
 
-void set_background(Registry& registry, int density) {
-  float tile_loc = -2.0 / density;
-  float tile_size = 10.0 / density;
+void set_background(kitty_ecs::Registry& registry, int density, int board_x, int board_y) {
+  float hex_width = std::sqrt(3.0f) * 1.0f;
+  float vert_spacing = 2.0f * 0.75f;
+  
+  float total_w = board_x * hex_width * 3.0f;
+  float total_h = board_y * vert_spacing * 3.0f;
+  
+  float start_x = -(board_x * hex_width);
+  float start_y = -(board_y * vert_spacing);
+  
+  float step_x = total_w / density;
+  float step_y = total_h / density;
+
   for (int i = 0; i < density; i++) {
     for (int j = 0; j < density; j++) {
       size_t bg_id = registry.create_entity();
-      float shift_factor = 1.0 - (tile_size / 10.0);
-      float x = shift_factor + (i * tile_loc);
-      float y = shift_factor + (j * tile_loc);
+      float x = start_x + (i * step_x);
+      float y = start_y + (j * step_y);
 
-      registry.transforms[bg_id] = {x, y, tile_size, tile_size, 0.0f, -1};
-      registry.colors[bg_id] = {1.0f, 1.0f, 1.0f};
+      registry.transforms[bg_id] = {x, y, step_x * 1.5f, step_y * 1.5f, 0.0f, -2};
+      registry.colors[bg_id] = {0.8f, 0.8f, 0.8f};
       registry.textures[bg_id] = {0.0f, 0.0f};
     }
   }
 }
 
-void generate_map(Registry& registry, 
-                  FleetRegistry& p_fleet, 
-                  EnemyRegistry& e_fleet, 
+void generate_map(kitty_ecs::Registry& registry, 
+                  xenoterra_imperium::FleetRegistry& p_fleet, 
                   int board_x, int board_y, float& tile_size) {
-  tile_size = 10.0 / board_y;
-  float tile_loc = -2.0 / board_y;
+  
+  tile_size = 1.0f;
+  float hex_width = std::sqrt(3.0f) * tile_size; 
+  float hex_height = 2.0f * tile_size;           
+  float vert_spacing = hex_height * 0.75f;       
+
+  SimpleNoise elevation_noise(1632); 
+  SimpleNoise moisture_noise(6767);  
 
   for (int i = 0; i < board_x; i++) {
     for (int j = 0; j < board_y; j++) {
       size_t tile = registry.create_entity();
-      float shift_factor_x = 1.0 - ((tile_size * 0.5f) / 10.0);
-      float shift_factor_y = 1.0 - (tile_size / 10.0);
-      float x = shift_factor_x + (i * (tile_loc * 0.5f));
-      float y = shift_factor_y + (j * tile_loc);
-      if (j < (int)(board_y / 2.0)) {
-        e_fleet.init_tile(tile, i, j);
-        registry.colors[tile] = {1.0f, 1.0f, 1.0f};
-        registry.transforms[tile] = {x, y, (tile_size * 0.5f), tile_size, 0.0f, 2};
-        registry.textures[tile] = {0.5f, 0.25f};
-      } else {
-        p_fleet.init_tile(tile, i, j);
-        registry.colors[tile] = {1.0f, 1.0f, 1.0f};
-        registry.transforms[tile] = {x, y, (tile_size * 0.5f), tile_size, 0.0f, 0};
-        registry.textures[tile] = {0.25f, 0.25f};
+      
+      float offset_x = (j % 2 != 0) ? (hex_width * 0.5f) : 0.0f;
+      float x = (i * hex_width) + offset_x;
+      float y = ((board_y - 1) - j) * vert_spacing;
+
+      p_fleet.init_tile(tile, i, j);
+
+      float zoom = 40.0f; 
+      float elevation = elevation_noise.get_value(x / zoom, y / zoom, 4);
+      float moisture = moisture_noise.get_value(x / zoom, y / zoom, 3);
+
+
+      kitty_ecs::Color tile_color;
+
+      if (elevation < 0.25f) {
+        tile_color = {0.1f, 0.2f, 0.6f}; 
+      } 
+      else if (elevation < 0.45f) {
+        tile_color = {0.2f, 0.5f, 0.8f}; 
+      } 
+      else if (elevation < 0.50f) {
+        tile_color = {0.8f, 0.7f, 0.5f}; 
+      } 
+      else if (elevation < 0.80f) {
+        if (moisture < 0.33f) {
+          tile_color = {0.7f, 0.6f, 0.3f}; // Dry Dirt / Scrubland
+        } else if (moisture < 0.66f) {
+          tile_color = {0.3f, 0.6f, 0.2f}; // Grassland / Plains
+        } else {
+          tile_color = {0.1f, 0.4f, 0.1f}; // Deep Forest
+        }
+      } 
+      else if (elevation < 0.90f) {
+        tile_color = {0.5f, 0.5f, 0.5f}; 
+      } 
+      else {
+        tile_color = {0.9f, 0.9f, 0.9f}; 
       }
+
+      registry.colors[tile] = tile_color;
+      registry.transforms[tile] = {x, y, tile_size, tile_size, 0.0f, 0};
+      registry.textures[tile] = {0.0f, 0.0f}; // Solid color, no texture
     }
   }
 }
 
-/*
-   void player_controller_system(Registry& registry, FleetRegistry& fleet, Input& input, float tile_size) {
-   if (input.is_key_held(GLFW_KEY_W))
-   fleet.fleet_movement_system(registry, tile_size, 1);
-   if (input.is_key_held(GLFW_KEY_S))
-   fleet.fleet_movement_system(registry, tile_size, 3);
-   if (input.is_key_held(GLFW_KEY_D))
-   fleet.fleet_movement_system(registry, tile_size, 2);
-   if (input.is_key_held(GLFW_KEY_A))
-   fleet.fleet_movement_system(registry, tile_size, 4);
-   }
- */
-
 class BattleshipBebop : public Application {
   private:
-    int board_x;
-    int board_y;
+    int board_x = 0;
+    int board_y = 0;
+    float cam_x = 0.0f;
+    float cam_y = 0.0f;
+    float cam_zoom = 60.0f;
     float tile_size;
     size_t player_entity;
     FleetRegistry player_fleet;
@@ -85,9 +117,9 @@ class BattleshipBebop : public Application {
     int attacking_ship_id = -1;
     bool mouse_was_pressed = false;
     std::map<std::string, int> ship_length = {
-      {"Light", 3},
-      {"Medium", 3},
-      {"Heavy", 5},
+      {"Light", 1},
+      {"Medium", 1},
+      {"Heavy", 1},
     };
     std::map<std::string, int> ship_speed = {
       {"Light", 1},
@@ -96,11 +128,15 @@ class BattleshipBebop : public Application {
     };
 
   public:
+    float get_camera_x() override { return cam_x; }
+    float get_camera_y() override { return cam_y; }
+    float get_camera_zoom() override { return cam_zoom; }
+
     void on_start(Registry& registry, Renderer& renderer) override {
-      board_y = 20;
-      board_x = (int)(board_y * 2);
-      set_background(registry, 2);
-      generate_map(registry, player_fleet, enemy_fleet, board_x, board_y, tile_size);
+      board_y = 60;
+      board_x = board_y;
+      set_background(registry, 10, board_x, board_y);
+      generate_map(registry, player_fleet, board_x, board_y, tile_size);
 
       hover_marker = registry.create_entity();
       registry.transforms[hover_marker] = {-999.0f, -999.0f, (tile_size * 0.5f), tile_size, 0.0f, 2};
@@ -123,13 +159,6 @@ class BattleshipBebop : public Application {
           ship_length["Medium"], ship_speed["Medium"], tile_size, board_x, board_y);
       player_fleet.spawn_ship(registry, ShipTier::Light, 
           ship_length["Light"], ship_speed["Light"], tile_size, board_x, board_y);
-
-      //enemy_fleet.spawn_ship(registry, ShipTier::Heavy, 
-      //    ship_length["Heavy"], ship_speed["Heavy"], tile_size, board_x, board_y);
-      enemy_fleet.spawn_ship(registry, ShipTier::Medium, 
-          ship_length["Medium"], ship_speed["Medium"], tile_size, board_x, board_y);
-      //enemy_fleet.spawn_ship(registry, ShipTier::Light, 
-      //    ship_length["Light"], ship_speed["Light"], tile_size, board_x, board_y);
 
       for (int i = 0; i < enemy_fleet.stats.size(); i++) {
         if (enemy_fleet.stats[i].length == 0) continue;
@@ -154,16 +183,22 @@ class BattleshipBebop : public Application {
           std::cout << "Enemy Ship " << i << " couldn't find a path to (" << test_target.x << ", " << test_target.y << ").\n";
         }
       }
+
+      float hex_width = std::sqrt(3.0f) * 1.0f; 
+      float vert_spacing = 2.0f * 0.75f;       
+      cam_x = ((board_x - 1.0f) * hex_width) / 2.0f;
+      cam_y = ((board_y - 1.0f) * vert_spacing) / 2.0f;
+      cam_zoom = 100.0f;
     }
 
     void on_tick_update(Registry& registry, Input& input) override {
-      player_fleet.process_fleet_movement(registry, tile_size, board_x, board_y);
-      enemy_fleet.process_fleet_movement(registry, tile_size, board_x, board_y);
+      player_fleet.process_fleet_movement(registry, board_x, board_y);
+      //enemy_fleet.process_fleet_movement(registry, board_x, board_y);
     }
 
     void on_update(Registry& registry, Input& input) override {
-      player_fleet.update_ship_scaling(registry, tile_size);
-      enemy_fleet.update_visuals(registry);
+      //player_fleet.update_visuals(registry);
+      //enemy_fleet.update_visuals(registry);
       bool mouse_down = input.is_mouse_button_down(GLFW_MOUSE_BUTTON_LEFT);
 
       if (!ImGui::GetIO().WantCaptureMouse) {
@@ -172,36 +207,50 @@ class BattleshipBebop : public Application {
 
         int win_w, win_h;
         input.get_window_size(win_w, win_h);
+        
+        float viewport_height = (float)win_h - 400.0f;
+        if (viewport_height < 1.0f) viewport_height = 1.0f;
 
-        int grid_x = (board_x - 1) - static_cast<int>((mx / (double)win_w) * board_x);
-        int grid_y = static_cast<int>((my / ((double)win_h - 400.0)) * board_y);
-        if (targeting_ship_id != -1 && grid_x > 0 && grid_x < (board_x - 1) 
-            && grid_y > (board_y / 2) && grid_y < (board_y - 1)) {
-          float t_loc = -2.0f / board_y;
-          float shift_x = 1.0f - ((tile_size * 0.5f) / 10.0f);
-          float shift_y = 1.0f - (tile_size / 10.0f);
-          registry.transforms[hover_marker].x = shift_x + (grid_x * (t_loc * 0.5f));
-          registry.transforms[hover_marker].y = shift_y + (grid_y * t_loc);
+        // Convert mouse pixels to Normalized Device Coordinates (-1.0 to 1.0)
+        float ndc_x = (mx / (float)win_w) * 2.0f - 1.0f;
+        float ndc_y = 1.0f - (my / viewport_height) * 2.0f; // WebGPU Y is inverted
+
+        // Apply the Drone Camera's exact zoom, position, and aspect ratio
+        float aspect_ratio = (float)win_w / viewport_height;
+        float world_x = cam_x + (ndc_x * (cam_zoom * aspect_ratio * 0.5f));
+        float world_y = cam_y + (ndc_y * (cam_zoom * 0.5f));
+
+        float hex_width = std::sqrt(3.0f) * 1.0f;
+        float vert_spacing = 2.0f * 0.75f;
+
+        int grid_y = std::round((board_y - 1) - (world_y / vert_spacing));
+        
+        float offset_x = (grid_y % 2 != 0) ? (hex_width * 0.5f) : 0.0f;
+        int grid_x = std::round((world_x - offset_x) / hex_width);
+
+        if (targeting_ship_id != -1 && grid_x >= 0 && grid_x < board_x 
+            && grid_y >= 0 && grid_y < board_y) {
+          
+          registry.transforms[hover_marker].x = (grid_x * hex_width) + offset_x;
+          registry.transforms[hover_marker].y = ((board_y - 1) - grid_y) * vert_spacing;
+          
         } else {
           registry.transforms[hover_marker].x = -999.0f; 
         }
-        if (attacking_ship_id != -1 && grid_x >= 0 && grid_x < board_x && grid_y < (board_y / 2)) {
+
+        if (attacking_ship_id != -1 && grid_x >= 0 && grid_y >= 0 && grid_x < board_x && grid_y < board_y) {
           auto ship_pos = player_fleet.movement[attacking_ship_id].current_grid_pos;
           auto stats = player_fleet.combat[attacking_ship_id];
 
           bool valid_target = is_in_range(ship_pos, {grid_x, grid_y}, stats.range);
 
           if (valid_target) {
-            float t_size = 10.0f / board_y;
-            float t_loc = -2.0f / board_y;
-            float shift_x = 1.0f - ((t_size * 0.5f) / 10.0f);
-            float shift_y = 1.0f - (t_size / 10.0f);
-
-            registry.transforms[attack_marker].x = shift_x + (grid_x * (t_loc * 0.5f));
-            registry.transforms[attack_marker].y = shift_y + (grid_y * t_loc);
+            registry.transforms[attack_marker].x = (grid_x * hex_width) + offset_x;
+            registry.transforms[attack_marker].y = ((board_y - 1) - grid_y) * vert_spacing;
           } else {
             registry.transforms[attack_marker].x = -999.0f;
           }
+
           if (mouse_down && !mouse_was_pressed && valid_target) {
             std::cout << "\n>>> FIRING SALVO FROM SHIP " << attacking_ship_id << " <<<\n";
 
@@ -221,9 +270,6 @@ class BattleshipBebop : public Application {
               if (dis(gen) <= stats.hit_chance) {
                 hits_landed++;
                 std::cout << "[HIT] Shell " << v+1 << " struck Grid (" << impact_tile.x << ", " << impact_tile.y << ")! Dealing " << stats.damage_direct << " damage!\n";
-
-                // FUTURE STEP: Call enemy_fleet.is_tile_occupied() here!
-                // If an enemy is there, subtract stats.damage_direct from their HP!
 
               } else {
                 std::cout << "[MISS] Shell " << v+1 << " landed harmlessly in the water at (" << impact_tile.x << ", " << impact_tile.y << ").\n";

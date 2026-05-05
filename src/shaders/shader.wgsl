@@ -2,10 +2,7 @@
 @group(0) @binding(1) var mySampler: sampler;
 
 struct GlobalUniforms {
-  aspect_ratio: f32,
-  padding1: f32,
-  padding2: f32,
-  padding3: f32,
+  view_proj: mat4x4<f32>,
 };
 @group(0) @binding(2) var<uniform> globals: GlobalUniforms;
 
@@ -34,15 +31,20 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
   var out: VertexOutput;
   out.color = model.color * instance.instance_color;
   out.uv = (model.uv * 0.25) + instance.atlas_offset;
+  
   let scaled_pos = model.position.xy * instance.instance_scale;
   let c = cos(instance.rotation);
   let s = sin(instance.rotation);
+  
   let rotated_x = (scaled_pos.x * c) - (scaled_pos.y * s);
   let rotated_y = (scaled_pos.x * s) + (scaled_pos.y * c);
   let rotated_pos = vec2<f32>(rotated_x, rotated_y);
+  
+  // The entity's true World Coordinate
   let final_pos = rotated_pos + instance.instance_pos;
 
-  out.clip_position = vec4<f32>(final_pos.x * (globals.aspect_ratio / globals.aspect_ratio), final_pos.y, 0.0, 1.0); 
+  // Multiply World Coords by the Camera Matrix!
+  out.clip_position = globals.view_proj * vec4<f32>(final_pos, 0.0, 1.0); 
 
   return out;
 }

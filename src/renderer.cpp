@@ -119,7 +119,7 @@ namespace kitty_ecs {
     // --- GLOBALS BUFFER SETUP ---
     WGPUBufferDescriptor globalsBufDesc = {};
     globalsBufDesc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-    globalsBufDesc.size = 16; // 4 floats (aspect ratio + 3 padding)
+    globalsBufDesc.size = 64;
     WGPUBuffer globalsBuffer = wgpuDeviceCreateBuffer(device, &globalsBufDesc);
 
     // Render Pipeline Setup and Shader Handling

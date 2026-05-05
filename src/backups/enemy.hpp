@@ -4,7 +4,7 @@
 #include "ecs.hpp"
 #include "ships.hpp"
 
-namespace xenoterra_imperium {
+namespace battleship_bebop {
   struct EnemyTile {
     GridPos tile_pos;
     bool active;
@@ -43,17 +43,17 @@ namespace xenoterra_imperium {
       std::uniform_int_distribution<> dis_dir(1, 4);
 
       bool valid_spawn = false;
-      int spawn_x, spawn_y; 
-      float spawn_dir;
+      int spawn_x, spawn_y, spawn_dir;
 
       while (!valid_spawn) {
         spawn_x = dis_x(gen);
         spawn_y = dis_y(gen);
-        spawn_dir = get_orientation(dis_dir(gen));
+        //spawn_dir = 1;
+        spawn_dir = dis_dir(gen);
 
         valid_spawn = true;
 
-        auto spawn_tiles = get_ship_tiles({spawn_x, spawn_y}, ship_length, spawn_dir);
+        auto spawn_tiles = get_ship_tiles({spawn_x, spawn_y}, ship_length, spawn_dir, spawn_dir);
 
         for (const auto& tile : spawn_tiles) {
           if (tile.x < 1 || tile.x >= board_x - 1 || 
@@ -74,8 +74,20 @@ namespace xenoterra_imperium {
       movement[ship_id].current_grid_pos = {spawn_x, spawn_y};
       movement[ship_id].facing_direction = spawn_dir;
       movement[ship_id].rot_direction = spawn_dir;
+      float tile_loc = -2.0f / board_y;
+      float shift_factor_x = 1.0f - ((tile_size * 0.5f) / 10.0f);
+      float shift_factor_y = 1.0f - (tile_size / 10.0f);
 
-      registry.transforms[ship_id] = {-999.0f, -999.0f, 0.0f, 0.0f, 0.0f, 1};
+      float world_x = shift_factor_x + (spawn_x * (tile_loc * 0.5f));
+      float world_y = shift_factor_y + (spawn_y * tile_loc);
+      float radians = 0.0f;
+      switch (spawn_dir) {
+        case 1: break;
+        case 2: radians = (3.0f * kitty_ecs::PI) / 2.0f; break;
+        case 3: radians = kitty_ecs::PI; break;
+        case 4: radians = kitty_ecs::PI / 2.0f; break;
+      }
+      registry.transforms[ship_id] = {world_x, world_y, 0.0f, 0.0f, radians, 1};
     }
 
     void init_tile(size_t entity_id, int pos_x, int pos_y) {
@@ -88,8 +100,11 @@ namespace xenoterra_imperium {
     inline bool is_tile_occupied(int ship_id, int target_x, int target_y) {
       for (size_t i = 0; i < stats.size(); i++) {
         if (stats[i].length == 0 || i == ship_id) continue; 
-        
-        auto tiles = get_ship_tiles(movement[i].current_grid_pos, stats[i].length, movement[i].rot_direction);
+
+        auto tiles = get_ship_tiles(movement[i].current_grid_pos, 
+            stats[i].length, 
+            movement[i].facing_direction, 
+            movement[i].rot_direction);
         for (const auto& tile : tiles) {
           if (tile.x == target_x && tile.y == target_y) return true;
         }
@@ -136,9 +151,8 @@ namespace xenoterra_imperium {
           else if (new_dir == 2) next_pos.x += 1;
           else if (new_dir == 3) next_pos.y -= 1;
           else if (new_dir == 4) next_pos.x -= 1;
-          
-          auto proposed_tiles = get_ship_tiles(next_pos, ship_length, get_orientation(new_dir));
-          //auto proposed_tiles = get_ship_tiles(next_pos, ship_length, new_dir, new_dir);
+
+          auto proposed_tiles = get_ship_tiles(next_pos, ship_length, new_dir, new_dir);
           bool is_valid = true;
 
           for (const auto& tile : proposed_tiles) {
@@ -187,7 +201,69 @@ namespace xenoterra_imperium {
       return final_path;
     }
 
+    void fleet_movement_system(kitty_ecs::Registry& registry, int ship_id, float tile_size, int direction) {
+      if (movement[ship_id].can_move && movement[ship_id].set_move) {
+        switch(direction) {
+          case 4:
+            if (is_aligned(registry.transforms[ship_id].rotation, kitty_ecs::PI / 2.0f) || 
+                  is_aligned(registry.transforms[ship_id].rotation, (3.0f * kitty_ecs::PI) / 2.0f)) {
+              movement[ship_id].current_grid_pos.x += 1;
+              movement[ship_id].facing_direction = 4;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 4) == 1) {
+              registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 4;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 4) == 0) {
+              registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 4;
+            }
+            break;
+          case 3:
+            if (is_aligned(registry.transforms[ship_id].rotation, 0.0f) || 
+                  is_aligned(registry.transforms[ship_id].rotation, kitty_ecs::PI) ||
+                  is_aligned(registry.transforms[ship_id].rotation, (2.0f * kitty_ecs::PI))) {
+              movement[ship_id].current_grid_pos.y += 1;
+              movement[ship_id].facing_direction = 3;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 3) == 1) {
+              registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 3;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 3) == 0) {
+              registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 3;
+            }
+            break;
+          case 2:
+            if (is_aligned(registry.transforms[ship_id].rotation, kitty_ecs::PI / 2.0f) || 
+                  is_aligned(registry.transforms[ship_id].rotation, (3.0f * kitty_ecs::PI) / 2.0f)) {
+              movement[ship_id].current_grid_pos.x -= 1;
+              movement[ship_id].facing_direction = 2;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 2) == 1) {
+              registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 2;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 2) == 0) {
+              registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 2;
+            }
+            break;
+          case 1:
+            if (is_aligned(registry.transforms[ship_id].rotation, 0.0f) || 
+                  is_aligned(registry.transforms[ship_id].rotation, kitty_ecs::PI) ||
+                  is_aligned(registry.transforms[ship_id].rotation, (2.0f * kitty_ecs::PI))) {
+              movement[ship_id].current_grid_pos.y -= 1;
+              movement[ship_id].facing_direction = 1;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 1) == 1) {
+              registry.rotation2D(ship_id, -(kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 1;
+            } else if (quadrant_check(registry.transforms[ship_id].rotation, 1) == 0) {
+              registry.rotation2D(ship_id, (kitty_ecs::PI / 4.0f));
+              movement[ship_id].rot_direction = 1;
+            }
+            break;
+        }
+      }
+    }
+
     void update_visuals(kitty_ecs::Registry& registry) {
+      // 1. Reset all enemy tiles to their calm state
       for (size_t t = 0; t < tiles.size(); t++) {
         if (tiles[t].is_tile) {
           tiles[t].active = false;
@@ -196,10 +272,15 @@ namespace xenoterra_imperium {
         }
       }
 
+      // 2. Loop through all living enemy ships
       for (size_t i = 0; i < stats.size(); i++) {
         if (stats[i].length == 0 || !registry.active_entities[i]) continue;
-        
-        auto footprint = get_ship_tiles(movement[i].current_grid_pos, stats[i].length, movement[i].rot_direction);
+
+        // Fetch their current physical footprint (includes mid-rotation diagonal tiles!)
+        auto footprint = get_ship_tiles(movement[i].current_grid_pos, 
+            stats[i].length, movement[i].facing_direction, movement[i].rot_direction);
+
+        // 3. Paint the footprint onto the grid
         for (const auto& pos : footprint) {
           for (size_t t = 0; t < tiles.size(); t++) {
             if (tiles[t].is_tile && tiles[t].tile_pos.x == pos.x && tiles[t].tile_pos.y == pos.y) {
@@ -207,6 +288,7 @@ namespace xenoterra_imperium {
               tiles[t].active = true;
               registry.colors[t] = {1.0f, 0.0f, 0.0f}; // Tint the tile Red
               
+              // Apply your attack_marker texture (Slot 8 -> 0.0f, 0.5f)
               registry.textures[t] = {0.0f, 0.5f}; 
               break; 
             }
@@ -214,35 +296,8 @@ namespace xenoterra_imperium {
         }
       }
     }
-
-    void fleet_movement_system(int ship_id, float target_orientation, int dx, int dy) {
-      if (movement[ship_id].can_move && movement[ship_id].set_move) {
-        auto& state = movement[ship_id];
-        
-        if (std::abs(state.facing_direction - target_orientation) < 0.1f) {
-          // Already aligned! Step forward.
-          state.current_grid_pos.x += dx;
-          state.current_grid_pos.y += dy;
-          state.rot_direction = target_orientation;
-          state.is_rotating = false;
-        } 
-        else if (!state.is_rotating) {
-          // Phase 1: Begin turn. Sweep the diagonal using your math!
-          state.rot_direction = std::fmod(state.facing_direction + 0.5f, 2.0f);
-          state.is_rotating = true;
-        } 
-        else {
-          // Phase 2: Finish turn and step forward.
-          state.facing_direction = target_orientation;
-          state.rot_direction = target_orientation;
-          state.current_grid_pos.x += dx;
-          state.current_grid_pos.y += dy;
-          state.is_rotating = false;
-        }
-      }
-    }
-
-    void process_fleet_movement(kitty_ecs::Registry& registry, int board_x, int board_y) {
+    
+    void process_fleet_movement(kitty_ecs::Registry& registry, float tile_size, int board_x, int board_y) {
       for (size_t i = 0; i < stats.size(); i++) {
         if (stats[i].length == 0 || !registry.active_entities[i]) continue;
 
@@ -250,8 +305,8 @@ namespace xenoterra_imperium {
         
         if (move_state.can_move && move_state.set_move && !move_state.path_queue.empty()) {
           GridPos next_step = move_state.path_queue.front();
-          
           if (is_tile_occupied(i, next_step.x, next_step.y)) {
+
             std::cout << "Ship " << i << " encountered traffic! Recalculating route...\n";
 
             auto new_route = calculate_path(
@@ -272,23 +327,35 @@ namespace xenoterra_imperium {
 
             continue; 
           }
-          
           int dx = next_step.x - move_state.current_grid_pos.x;
           int dy = next_step.y - move_state.current_grid_pos.y;
-          
-          float target_orientation = move_state.facing_direction;
-          if (dx != 0) target_orientation = 1.0f; // Horizontal
-          if (dy != 0) target_orientation = 0.0f; // Vertical
-          
-          fleet_movement_system(i, target_orientation, dx, dy);
+          int curr_x = move_state.current_grid_pos.x;
+          int curr_y = move_state.current_grid_pos.y;
+          int face_dir = move_state.facing_direction;
+
+          if (dy > 0 && dx == 0) {
+            if (face_dir != 3 && face_dir != 1) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
+            fleet_movement_system(registry, i, tile_size, 3);
+          } else if (dy < 0 && dx == 0) {
+            if (face_dir != 3 && face_dir != 1) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
+            fleet_movement_system(registry, i, tile_size, 1);
+          } else if (dx > 0 && dy == 0) {
+            if (face_dir != 4 && face_dir != 2) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
+            fleet_movement_system(registry, i, tile_size, 4);
+          } else if (dx < 0 && dy == 0) {
+            if (face_dir != 4 && face_dir != 2) move_state.is_rotating = true;
+            else move_state.is_rotating = false;
+            fleet_movement_system(registry, i, tile_size, 2);
+          } else {
+            move_state.is_rotating = false;
+          }
 
           if (move_state.current_grid_pos.x == next_step.x && move_state.current_grid_pos.y == next_step.y) {
             move_state.path_queue.pop_front();
             move_state.is_rotating = false;
-            
-            move_state.can_move = false;
-            move_state.ticks_til_move = stats[i].ticks_per_move;
-
             if (move_state.path_queue.empty()) {
               move_state.set_move = false;
               move_state.can_move = true;
@@ -296,7 +363,6 @@ namespace xenoterra_imperium {
             }
           }
         }
-
         if (move_state.ticks_til_move == 0) {
           move_state.can_move = true;
           move_state.ticks_til_move = stats[i].ticks_per_move;
