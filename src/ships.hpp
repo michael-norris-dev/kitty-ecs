@@ -5,6 +5,7 @@
 #include <random>
 #include <algorithm>
 #include "ecs.hpp"
+#include "math.hpp"
 #include "input.hpp"
 #include "constants.h"
 
@@ -35,66 +36,18 @@ namespace xenoterra_imperium {
     bool is_tile = false;
   };
 
-  enum class ShipTier {
-    Light,
-    Medium,
-    Heavy
-  };
-
-  struct CombatStats {
-    int hp;
-    int max_hp;
-    int damage_direct;
-    int damage_indirect;
-
-    float range;
-    int aoe_radius;
-    int volley_count;
-    float hit_chance;
-  };
-
-  struct ActionState {
-    bool is_attacking_this_tick;
-    float target_x;
-    float target_y;
-  };
-
-  struct ShipStats {
-    ShipTier tier;
-    int length;
-    int ticks_per_move;
-  };
-
   struct MovementState {
     int ticks_til_move;
     bool can_move;
     bool set_move;
     GridPos current_grid_pos;
-    float facing_direction;
     std::deque<GridPos> path_queue;
     GridPos target_grid_pos;
-    bool is_rotating;
-    float rot_direction;
   };
 
-  inline float get_orientation(int movement_dir) {
-    if (movement_dir == 1 || movement_dir == 3) return 0.0f;
-    return 1.0f;
-  }
-
-  CombatStats get_base_stats(ShipTier tier) {
-    switch(tier) {
-      case ShipTier::Heavy:  return {200, 200, 100, 50, 18.0f, 2, 6, 0.35f};
-      case ShipTier::Medium: return {100, 100, 50, 25, 12.0f, 1, 3, 0.60f};
-      case ShipTier::Light:  return {50, 50, 25, 0, 8.0f, 0, 1, 0.90f};
-    }
-    return {0, 0, 0, 0, 0.0f, 0, 0, 0.0f};
-  }
-
-  inline bool is_in_range(GridPos ship, GridPos target, float range) {
-    float dx = (float)(target.x - ship.x);
-    float dy = (float)(target.y - ship.y);
-    float distance = std::sqrt((dx * dx) + (dy * dy));
+  inline bool is_in_range(GridPos entity, GridPos target, float range) {
+    Vec2 d = ((float)(target.x - entity.x), (float)(target.y - entity.y));
+    float distance = std::sqrt((d.x * d.x) + (d.y * d.y));
     return distance <= range;
   }
 
@@ -110,53 +63,18 @@ namespace xenoterra_imperium {
     return aoe;
   }
 
-  inline std::vector<GridPos> get_ship_tiles(GridPos mid, int length, float rot_dir) {
-    std::vector<GridPos> occupied_tiles;
-    int half = (length - 1) / 2;
-    occupied_tiles.push_back(mid);
-
-    int dx = 0;
-    int dy = 0;
-
-    // Resolve the slope based on your exact fractional rules
-    if (std::abs(rot_dir - 0.0f) < 0.1f)      { dx = 0; dy = 1; }  // 0.0: Vertical
-    else if (std::abs(rot_dir - 1.0f) < 0.1f) { dx = 1; dy = 0; }  // 1.0: Horizontal
-    else if (std::abs(rot_dir - 0.5f) < 0.1f) { dx = 1; dy = -1; } // 0.5: Diagonal (/)
-    else if (std::abs(rot_dir - 1.5f) < 0.1f) { dx = 1; dy = 1; }  // 1.5: Diagonal (\)
-    
-    // Draw the symmetrical arms simultaneously!
-    for (int i = 1; i <= half; i++) {
-      occupied_tiles.push_back({mid.x + (i * dx), mid.y + (i * dy)});
-      occupied_tiles.push_back({mid.x - (i * dx), mid.y - (i * dy)});
-    }
-
-    return occupied_tiles;
-  }
-
-  struct FleetRegistry {
-    std::vector<ShipStats> stats;
+  struct FactionRegistry {
     std::vector<MovementState> movement;
-    std::vector<CombatStats> combat;
-    std::vector<ActionState> actions;
     std::vector<PlayerTile> tiles;
 
-    void init_ship(size_t entity_id, ShipTier tier, int length, int speed) {
+    void init_entity(size_t entity_id) {
       if (entity_id >= stats.size()) {
-        stats.resize(entity_id + 100);
         movement.resize(entity_id + 100);
-        combat.resize(entity_id + 100);
-        actions.resize(entity_id + 100);
       }
-      stats[entity_id] = {tier, length, speed};
-      movement[entity_id] = {0, true, false, {0, 0}, 1};
-      movement[entity_id].is_rotating = false;
-      movement[entity_id].rot_direction = 1;
-      combat[entity_id] = get_base_stats(tier);
-      actions[entity_id] = {false, 0.0f, 0.0f};
+      movement[entity_id] = {0, true, false, {0, 0}};
     }
 
-    void spawn_ship(kitty_ecs::Registry& registry, ShipTier tier, 
-        int ship_length, int ship_speed, float tile_size, int board_x, int board_y) {
+    void spawn_entity(kitty_ecs::Registry& registry, float tile_size, int board_x, int board_y) {
       std::random_device rd;
       std::mt19937 gen(rd());
 
@@ -173,25 +91,20 @@ namespace xenoterra_imperium {
         spawn_dir = get_orientation(dis_dir(gen));
 
         valid_spawn = true;
+        GridPos spawn_tile = {spawn_x, spawn_y};
 
-        auto spawn_tiles = get_ship_tiles({spawn_x, spawn_y}, ship_length, spawn_dir);
-
-        for (const auto& tile : spawn_tiles) {
-          if (tile.x < 1 || tile.x >= board_x - 1 || 
-              tile.y < ((board_y+1) / 2) || tile.y >= (board_y-1)) {
-            valid_spawn = false;
-            continue;
-          }
+        if (spawn_tile.x < 1 || spawn_tile.x >= board_x - 1 || 
+            spawn_tile.y < ((board_y+1) / 2) || spawn_tile.y >= (board_y-1)) {
+          valid_spawn = false;
+          continue;
         }
       }
 
-      size_t ship_id = registry.create_entity();
-      init_ship(ship_id, tier, ship_length, ship_speed);
-      movement[ship_id].current_grid_pos = {spawn_x, spawn_y};
-      movement[ship_id].facing_direction = spawn_dir;
-      movement[ship_id].rot_direction = spawn_dir;
+      size_t entity_id = registry.create_entity();
+      init_entity(entity_id);
+      movement[entity_id].current_grid_pos = {spawn_x, spawn_y};
 
-      registry.transforms[ship_id] = {-999.0f, -999.0f, 0.0f, 0.0f, 0.0f, 1};
+      registry.transforms[entity_id] = {-999.0f, -999.0f, 0.0f, 0.0f, 0.0f, 1};
     }
 
     void init_tile(size_t entity_id, int pos_x, int pos_y) {
@@ -202,8 +115,7 @@ namespace xenoterra_imperium {
       tiles[entity_id] = {{pos_x, pos_y}, false, true};
     }
 
-    std::deque<GridPos> calculate_path(GridPos start, GridPos target, 
-        int ship_length, int start_dir, int board_x, int board_y, int ship_id) {
+    std::deque<GridPos> calculate_path(GridPos start, GridPos target, int board_x, int board_y, int entity_id) {
       std::deque<GridPos> final_path;
       int max_x = board_x;
       int max_y = board_y;
@@ -229,7 +141,6 @@ namespace xenoterra_imperium {
           break; 
         }
 
-        // --- FIX 2: True 6-Way Hexagon Pathfinding ---
         std::vector<GridPos> neighbors;
         int cx = current.pos.x;
         int cy = current.pos.y;
@@ -250,7 +161,6 @@ namespace xenoterra_imperium {
         }
 
         for (const auto& next_pos : neighbors) {
-          // --- FIX 3: Fully open world (Removed the max_y / 2 boundary!) ---
           if (next_pos.x < 0 || next_pos.x >= max_x || next_pos.y < 0 || next_pos.y >= max_y) {
             continue; 
           }
@@ -261,7 +171,6 @@ namespace xenoterra_imperium {
           if (tentative_g < g_costs[next_idx]) {
             g_costs[next_idx] = tentative_g;
             
-            // Hex distance heuristic
             int h_cost = std::abs(target.x - next_pos.x) + std::abs(target.y - next_pos.y); 
             int f_cost = tentative_g + h_cost;
             
@@ -282,38 +191,15 @@ namespace xenoterra_imperium {
       return final_path;
     }
     
-    /*
-    void update_visuals(kitty_ecs::Registry& registry) {
-      for (size_t t = 0; t < tiles.size(); t++) {
-        if (tiles[t].is_tile) {
-          tiles[t].active = false;
-          registry.colors[t] = {1.0f, 1.0f, 1.0f};
-          registry.textures[t] = {0.25f, 0.25f};
-        }
-      }
-      for (size_t i = 0; i < stats.size(); i++) {
-        if (stats[i].length == 0 || !registry.active_entities[i]) continue;
-
-        for (size_t t = 0; t < tiles.size(); t++) {
-          if (tiles[t].is_tile && tiles[t].tile_pos.x == pos.x && tiles[t].tile_pos.y == pos.y) {
-            tiles[t].active = true;
-            registry.colors[t] = {0.0f, 1.0f, 0.0f}; // GREEN PLAYER TINT
-            registry.textures[t] = {0.0f, 0.5f};     // Solid marker texture
-            break;
-          }
-        }
-      }
-    }
-    */
-    void fleet_movement_system(int ship_id, int dx, int dy) {
-      if (movement[ship_id].can_move && movement[ship_id].set_move) {
-        movement[ship_id].current_grid_pos.x += dx;
-        movement[ship_id].current_grid_pos.y += dy;
-        movement[ship_id].is_rotating = false;          
+    void movement_system(int entity_id, int dx, int dy) {
+      if (movement[entity_id].can_move && movement[entity_id].set_move) {
+        movement[entity_id].current_grid_pos.x += dx;
+        movement[entity_id].current_grid_pos.y += dy;
+        movement[entity_id].is_rotating = false;          
       }
     }
 
-    void process_fleet_movement(kitty_ecs::Registry& registry, int board_x, int board_y) {
+    void process_movement(kitty_ecs::Registry& registry, int board_x, int board_y) {
       for (size_t i = 0; i < stats.size(); i++) {
         if (stats[i].length == 0 || !registry.active_entities[i]) continue;
 

@@ -39,7 +39,7 @@ void set_background(kitty_ecs::Registry& registry, int density, int board_x, int
 }
 
 void generate_map(kitty_ecs::Registry& registry, 
-                  xenoterra_imperium::FleetRegistry& p_fleet, 
+                  xenoterra_imperium::FactionRegistry& p_faction, 
                   int board_x, int board_y, float& tile_size) {
   
   tile_size = 1.0f;
@@ -58,7 +58,7 @@ void generate_map(kitty_ecs::Registry& registry,
       float x = (i * hex_width) + offset_x;
       float y = ((board_y - 1) - j) * vert_spacing;
 
-      p_fleet.init_tile(tile, i, j);
+      p_faction.init_tile(tile, i, j);
 
       float zoom = 40.0f; 
       float elevation = elevation_noise.get_value(x / zoom, y / zoom, 4);
@@ -108,24 +108,13 @@ class BattleshipBebop : public Application {
     float cam_zoom = 60.0f;
     float tile_size;
     size_t player_entity;
-    FleetRegistry player_fleet;
-    EnemyRegistry enemy_fleet;
+    FactionRegistry player_faction;
     size_t hover_marker;
     size_t select_marker;
     size_t attack_marker;
     int targeting_ship_id = -1;
     int attacking_ship_id = -1;
     bool mouse_was_pressed = false;
-    std::map<std::string, int> ship_length = {
-      {"Light", 1},
-      {"Medium", 1},
-      {"Heavy", 1},
-    };
-    std::map<std::string, int> ship_speed = {
-      {"Light", 1},
-      {"Medium", 2},
-      {"Heavy", 3},
-    };
 
   public:
     float get_camera_x() override { return cam_x; }
@@ -136,7 +125,7 @@ class BattleshipBebop : public Application {
       board_y = 60;
       board_x = board_y;
       set_background(registry, 10, board_x, board_y);
-      generate_map(registry, player_fleet, board_x, board_y, tile_size);
+      generate_map(registry, player_faction, board_x, board_y, tile_size);
 
       hover_marker = registry.create_entity();
       registry.transforms[hover_marker] = {-999.0f, -999.0f, (tile_size * 0.5f), tile_size, 0.0f, 2};
@@ -153,37 +142,6 @@ class BattleshipBebop : public Application {
       registry.colors[attack_marker] = {0.5f, 0.0f, 0.0f};
       registry.textures[attack_marker] = {0.0f, 0.5f};
 
-      player_fleet.spawn_ship(registry, ShipTier::Heavy, 
-          ship_length["Heavy"], ship_speed["Heavy"], tile_size, board_x, board_y);
-      player_fleet.spawn_ship(registry, ShipTier::Medium, 
-          ship_length["Medium"], ship_speed["Medium"], tile_size, board_x, board_y);
-      player_fleet.spawn_ship(registry, ShipTier::Light, 
-          ship_length["Light"], ship_speed["Light"], tile_size, board_x, board_y);
-
-      for (int i = 0; i < enemy_fleet.stats.size(); i++) {
-        if (enemy_fleet.stats[i].length == 0) continue;
-        GridPos start_pos = enemy_fleet.movement[i].current_grid_pos;
-        GridPos test_target = {(start_pos.x + 3) % board_x, start_pos.y};
-
-        auto route = enemy_fleet.calculate_path(
-          enemy_fleet.movement[i].current_grid_pos,
-          test_target,
-          enemy_fleet.stats[i].length,
-          enemy_fleet.movement[i].facing_direction,
-          board_x, board_y, i
-        );
-
-        if (!route.empty()) {
-          enemy_fleet.movement[i].path_queue = route;
-          enemy_fleet.movement[i].target_grid_pos = test_target;
-          enemy_fleet.movement[i].set_move = true; // Tell the update loop it's allowed to move!
-          
-          std::cout << "Enemy Ship " << i << " test route to (" << test_target.x << ", " << test_target.y << ") locked in!\n";
-        } else {
-          std::cout << "Enemy Ship " << i << " couldn't find a path to (" << test_target.x << ", " << test_target.y << ").\n";
-        }
-      }
-
       float hex_width = std::sqrt(3.0f) * 1.0f; 
       float vert_spacing = 2.0f * 0.75f;       
       cam_x = ((board_x - 1.0f) * hex_width) / 2.0f;
@@ -192,13 +150,10 @@ class BattleshipBebop : public Application {
     }
 
     void on_tick_update(Registry& registry, Input& input) override {
-      player_fleet.process_fleet_movement(registry, board_x, board_y);
-      //enemy_fleet.process_fleet_movement(registry, board_x, board_y);
+      player_faction.process_movement(registry, board_x, board_y);
     }
 
     void on_update(Registry& registry, Input& input) override {
-      //player_fleet.update_visuals(registry);
-      //enemy_fleet.update_visuals(registry);
       bool mouse_down = input.is_mouse_button_down(GLFW_MOUSE_BUTTON_LEFT);
 
       if (!ImGui::GetIO().WantCaptureMouse) {
@@ -239,8 +194,8 @@ class BattleshipBebop : public Application {
         }
 
         if (attacking_ship_id != -1 && grid_x >= 0 && grid_y >= 0 && grid_x < board_x && grid_y < board_y) {
-          auto ship_pos = player_fleet.movement[attacking_ship_id].current_grid_pos;
-          auto stats = player_fleet.combat[attacking_ship_id];
+          auto ship_pos = player_faction.movement[attacking_ship_id].current_grid_pos;
+          auto stats = player_faction.combat[attacking_ship_id];
 
           bool valid_target = is_in_range(ship_pos, {grid_x, grid_y}, stats.range);
 
@@ -278,8 +233,6 @@ class BattleshipBebop : public Application {
 
             std::cout << "Salvo complete. Total shells on target: " << hits_landed << " / " << stats.volley_count << "\n\n";
 
-            //player_fleet.movement[attacking_ship_id].can_move = false;
-            //player_fleet.movement[attacking_ship_id].ticks_til_move = 0;
             attacking_ship_id = -1;
           }
         }
@@ -287,18 +240,18 @@ class BattleshipBebop : public Application {
         if (mouse_down && !mouse_was_pressed && targeting_ship_id != -1) {
           if (grid_x > 0 && grid_x < board_x && grid_y > (board_y / 2) && grid_y < board_y) {
 
-            auto route = player_fleet.calculate_path(
-                player_fleet.movement[targeting_ship_id].current_grid_pos,
+            auto route = player_faction.calculate_path(
+                player_faction.movement[targeting_ship_id].current_grid_pos,
                 {grid_x, grid_y},
-                player_fleet.stats[targeting_ship_id].length,
-                player_fleet.movement[targeting_ship_id].facing_direction,
+                player_faction.stats[targeting_ship_id].length,
+                player_faction.movement[targeting_ship_id].facing_direction,
                 board_x, board_y, targeting_ship_id
                 );
 
             if (!route.empty()) {
-              player_fleet.movement[targeting_ship_id].path_queue = route;
-              player_fleet.movement[targeting_ship_id].target_grid_pos = {grid_x, grid_y};
-              player_fleet.movement[targeting_ship_id].set_move = true;
+              player_faction.movement[targeting_ship_id].path_queue = route;
+              player_faction.movement[targeting_ship_id].target_grid_pos = {grid_x, grid_y};
+              player_faction.movement[targeting_ship_id].set_move = true;
               registry.transforms[select_marker].x = registry.transforms[hover_marker].x;
               registry.transforms[select_marker].y = registry.transforms[hover_marker].y;
               std::cout << "Course plotted! " << route.size() << " steps to target.\n";
@@ -333,10 +286,10 @@ class BattleshipBebop : public Application {
       ImGui::SetWindowFontScale(2.0f); 
       ImGui::Text("<<< Ship Status >>>");
       ImGui::Separator();
-      for (size_t i = 0; i < player_fleet.stats.size(); ++i) {
-        if (player_fleet.stats[i].length == 0) continue;
+      for (size_t i = 0; i < player_faction.stats.size(); ++i) {
+        if (player_faction.stats[i].length == 0) continue;
 
-        auto& state = player_fleet.movement[i];
+        auto& state = player_faction.movement[i];
 
         ImGui::Text("Ship ID: %zu", i);
         ImGui::SameLine(250);
@@ -371,7 +324,7 @@ class BattleshipBebop : public Application {
           ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "[ COOLDOWN ]");
           ImGui::SameLine(450);
 
-          float progress = 1.0f - (float)state.ticks_til_move / (float)player_fleet.stats[i].ticks_per_move;
+          float progress = 1.0f - (float)state.ticks_til_move / (float)player_faction.stats[i].ticks_per_move;
           ImGui::ProgressBar(progress, ImVec2(300, 0), "Charging...");
 
           ImGui::Dummy(ImVec2(0.0f, 10.0f));

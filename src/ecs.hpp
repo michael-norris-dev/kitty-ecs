@@ -2,29 +2,48 @@
 #include <vector>
 #include <cstdint>
 #include "constants.h"
+#include "math.hpp"
 
 namespace kitty_ecs {
-  struct Transform {
-    float x;
-    float y;
-    float scale_x;
-    float scale_y;
-    float rotation;
+  struct Transform2D {
+    Vec2 pos;
+    Vec2 scale;
+    float rotation; // radians
     int z_index;
   };
 
-  struct Velocity {
-    float dx;
-    float dy;
+  struct Velocity2D {
+    Vec2 velocity;
+  };
+
+  struct Transform2D {
+    Vec3 position;
+    Vec3 scale = {1.0f, 1.0f, 1.0f};
+    Quaternion rotation;
+  }
+
+  struct RigidBody3D {
+    Vec3 velocity;
+    Vec3 angular_velocity;
+    Vec3 force_acc;
+    Vec3 torque_acc;
+    float mass = 1.0f;
+    float inverse_mass = 1.0f; // Pre-calculated for fast physics math
+  };
+
+  struct PIDMotor {
+    float kp = 10.0f; // Proportional (Strength of the "muscle")
+    float ki = 0.0f;  // Integral (Corrects long-term sag)
+    float kd = 1.0f;  // Derivative (Dampens movement so it doesn't jitter)
+    Quaternion target_rotation;
   };
 
   struct Texture {
-    float atlas_x;
-    float atlas_y;
+    Vec2 atlas;
   };
 
   struct Color {
-    float r, g, b;
+    Vec3 color_rgb;
   };
 
   class Registry {
