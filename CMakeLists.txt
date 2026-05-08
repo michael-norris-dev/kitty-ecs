@@ -1,17 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
-
-project(CppWebGpuEngine CXX)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# This generates a compile_commands.json file. 
-# Point your language server (like clangd) to this, and your editor 
-# will have perfect autocomplete for all the GLFW and WebGPU functions!
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+project(kitty_ecs CXX)
 
 include(FetchContent)
 
-# 1. Fetch GLFW
 FetchContent_Declare(
   glfw
   GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -31,43 +22,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(webgpu)
 
-file(GLOB IMGUI_SOURCES "src/imgui/*.cpp")
-file(COPY "src/shaders/shader.wgsl" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(GLOB IMGUI_SOURCES "vendor/imgui/*.cpp")
 
-add_custom_target(
-  PackAtlas ALL
-  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/assets/scripts/atlas_gen.py
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Stitching raw assets into atlas.png..."
-)
-
-# Define our executable
-add_executable(engine 
-  src/main.cpp 
+add_library(kitty_ecs 
   src/engine.cpp 
   src/ecs.cpp 
   src/renderer.cpp 
   src/primitives.cpp 
   src/shader.cpp 
   src/window.cpp
-  src/memory_metrics.cpp
   ${IMGUI_SOURCES}
 )
 
-add_dependencies(engine PackAtlas)
-
-add_custom_command(
-  TARGET engine POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-  ${CMAKE_CURRENT_SOURCE_DIR}/assets
-  ${CMAKE_CURRENT_BINARY_DIR}/assets
-)
-
-target_include_directories(engine PRIVATE src/imgui)
-target_compile_definitions(engine PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
-# Link both libraries to our executable
-target_link_libraries(engine PRIVATE glfw webgpu)
-
-# Copy the wgpu-native dynamic library (.dll or .so) next to the executable 
-# so the OS can find it when you actually run the program
-target_copy_webgpu_binaries(engine)
+target_include_directories(kitty_ecs PUBLIC include)
+target_include_directories(kitty_ecs PUBLIC vendor/imgui)
+target_compile_definitions(kitty_ecs PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
+target_link_libraries(kitty_ecs PUBLIC glfw webgpu)
